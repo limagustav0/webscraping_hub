@@ -447,12 +447,3 @@ async def process_urls(urls):
     print(f'Processamento concluído: {processed_count}/{total_urls} URLs processadas')
     print(f'Resultados: {successful_urls} URLs bem-sucedidas, {len(sem_dados)} URLs falharam, {len(sem_dados)} URLs sem dados')
 
-if __name__ == "__main__":
-    url = "https://www.mercadolivre.com.br/shampoo-higienizando-widi-care-a-juba-500ml-limpeza-inteligente/p/MLB19860817/s?"
-    result = asyncio.run(extract_data_from_meli(url))
-    if result:
-        print("\nDados dos vendedores extraídos:")
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        print(f"\nTotal de vendedores: {len(result)}")
-    else:
-        print("Nenhum dado foi extraído")
