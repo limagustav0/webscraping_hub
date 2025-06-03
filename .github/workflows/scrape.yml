@@ -2,7 +2,7 @@ name: Web Scraping Workflow
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Runs every 6 hours
+    - cron: '*/20 * * * *'  # Runs every 20 minutes
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
@@ -30,4 +30,4 @@ jobs:
     - name: Run scraper
       env:
         API_URL: ${{ secrets.API_URL }}
-      run: python scrape_combined_crawl4ai.py 
+      run: python execucao.py 
