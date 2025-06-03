@@ -292,10 +292,6 @@ async def extract_data_from_meli(url: str) -> list:
                             'status': 'ativo'
                         }
                         lojas.append(seller)
-                    
-                    # Salvar dados em JSON
-                    with open('sellers_melidata.json', 'w', encoding='utf-8') as f:
-                        json.dump(lojas, f, ensure_ascii=False, indent=2)
             except Exception as e:
                 print(f"Erro ao extrair dados do melidata: {e}")
             
