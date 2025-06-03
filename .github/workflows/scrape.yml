@@ -28,4 +28,6 @@ jobs:
         playwright install chromium
         
     - name: Run scraper
+      env:
+        API_URL: ${{ secrets.API_URL }}
       run: python scrape_combined_crawl4ai.py 
