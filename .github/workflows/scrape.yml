@@ -1,0 +1,31 @@
+name: Web Scraping Workflow
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Runs every 6 hours
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    
+    - name: Create auth file
+      run: |
+        echo '${{ secrets.MELI_AUTH }}' > meli_auth.json
+      
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        playwright install chromium
+        
+    - name: Run scraper
+      run: python scrape_combined_crawl4ai.py 
