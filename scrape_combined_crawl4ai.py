@@ -361,7 +361,7 @@ async def crawl_url(crawler, url, max_retries=3):
 
 async def send_to_api(data):
     """Envia os dados dos vendedores para a API (POST)."""
-    api_url = 'https://www.price.kamico.com.br/api/products'
+    api_url = os.environ.get('API_URL', 'https://www.price.kamico.com.br/api/products')
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(api_url, json=data, headers={'Content-Type': 'application/json'}) as response:
@@ -447,3 +447,12 @@ async def process_urls(urls):
     print(f'Processamento concluído: {processed_count}/{total_urls} URLs processadas')
     print(f'Resultados: {successful_urls} URLs bem-sucedidas, {len(sem_dados)} URLs falharam, {len(sem_dados)} URLs sem dados')
 
+if __name__ == "__main__":
+    url = "https://www.mercadolivre.com.br/shampoo-higienizando-widi-care-a-juba-500ml-limpeza-inteligente/p/MLB19860817/s?"
+    result = asyncio.run(extract_data_from_meli(url))
+    if result:
+        print("\nDados dos vendedores extraídos:")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(f"\nTotal de vendedores: {len(result)}")
+    else:
+        print("Nenhum dado foi extraído")
