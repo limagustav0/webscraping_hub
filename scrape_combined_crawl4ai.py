@@ -212,22 +212,14 @@ async def extract_data_from_meli(url: str) -> list:
         try:
             context = await browser.new_context()
             
-            # Adiciona cookies do ambiente
-            cookies = [
-                {
-                    "name": "ftid",
-                    "value": os.environ.get("MELI_FTID", ""),
-                    "domain": ".mercadolivre.com.br",
-                    "path": "/"
-                },
-                {
-                    "name": "orguserid",
-                    "value": os.environ.get("MELI_ORGUSERID", ""),
-                    "domain": ".mercadolivre.com.br",
-                    "path": "/"
-                }
-            ]
-            await context.add_cookies(cookies)
+            # Carrega cookies do arquivo meli_auth.json
+            try:
+                with open('meli_auth.json', 'r') as f:
+                    auth_data = json.load(f)
+                    await context.add_cookies(auth_data['cookies'])
+            except Exception as e:
+                print(f"Erro ao carregar cookies: {e}")
+                return []
             
             page = await context.new_page()
             await page.goto(url, timeout=60000)  # Timeout de 60 segundos
