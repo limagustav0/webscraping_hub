@@ -10,94 +10,226 @@ from playwright.sync_api import sync_playwright
 import re
 import json
 from pprint import pprint
+import time
 
-def extract_data_from_markdown_amazon(markdown):
-    """Extrai SKU, descrição, loja, preço, review, imagem e outros dados do Markdown (Amazon)."""
+async def extract_data_from_amazon(target_url: str) -> list:
+    """
+    Extrai dados de vendedores de uma página de produto da Amazon, incluindo vendedor principal
+    e outras ofertas, usando Playwright. Retorna uma lista de dicionários com os dados formatados.
+
+    Args:
+        target_url: URL da página de produto da Amazon.
+
+    Returns:
+        list: Lista de dicionários com dados dos vendedores.
+    """
     lojas = []
+    storage_file = "amz_auth.json"
 
-    # Extrai SKU (ASIN) da URL no Markdown
-    sku_pattern = r'https://www\.amazon\.com\.br/.*/dp/([A-Z0-9]{10})'
-    sku_match = re.search(sku_pattern, markdown)
-    sku = sku_match.group(1) if sku_match else None
-    if not sku:
-        print('SKU não encontrado no Markdown (Amazon)')
-        return []
+    # Verifica se o arquivo de storage existe
+    if not os.path.exists(storage_file):
+        print(f"Erro: Arquivo de autenticação {storage_file} não encontrado.")
+        return lojas
 
-    # Extrai descrição (nome do produto)
-    desc_pattern = r'Este item:?\s*([^\n]+?)\s*(?=R\$|\n)'
-    desc_match = re.search(desc_pattern, markdown, re.MULTILINE)
-    descricao = desc_match.group(1).strip() if desc_match else None
-    # Fallback: usa o título da imagem
-    if not descricao or 'devolvido' in descricao.lower():
-        img_desc_pattern = (
-            r'!\[([^\]]+?)\]\(https://images-na\.ssl-images-amazon\.com'
-        )
-        img_desc_match = re.search(img_desc_pattern, markdown)
-        descricao = (
-            img_desc_match.group(1).strip()
-            if img_desc_match
-            else 'Descrição não encontrada'
-        )
-    print(f'Descrição capturada (Amazon): {descricao!r}')
-
-    # Extrai loja (quem envia)
-    loja_pattern = (
-        r'Enviado de e vendido por\s*(Amazon\.com\.br|[^\n.]+?)(?:\.|\n|$)'
-    )
-    loja_match = re.search(loja_pattern, markdown)
-    nome_loja = loja_match.group(1).strip() if loja_match else 'Amazon.com.br'
-
-    # Extrai preço (prioriza priceAmount do JSON)
-    preco_final = 0.0
-    json_preco_pattern = r'"priceAmount":([\d.]+)'
-    json_preco_match = re.search(json_preco_pattern, markdown)
-    if json_preco_match:
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)  # Mantido como False para depuração
         try:
-            preco_final = float(json_preco_match.group(1))
-        except ValueError:
-            print(
-                f'Erro ao converter preço do JSON (Amazon): {json_preco_match.group(1)}'
-            )
-    else:
-        # Fallback: usa a regex original
-        preco_pattern = r'R\$([\d,.]+?)(?=\s*\(R\$\s*[\d,.]+/Mililitros\)|$)'
-        preco_match = re.search(preco_pattern, markdown)
-        if preco_match:
-            preco_final_str = (
-                preco_match.group(1).replace('.', '').replace(',', '.')
-            )
+            # Carrega cookies do arquivo amz_auth.json
+            with open(storage_file, 'r') as f:
+                auth_data = json.load(f)
+                context = await browser.new_context()
+                await context.add_cookies(auth_data.get('cookies', []))
+        except Exception as e:
+            print(f"Erro ao carregar cookies: {e}")
+            return lojas
+
+        page = await context.new_page()
+
+        try:
+            # Navega para a URL
+            print(f"Navegando para {target_url}")
+            await page.goto(target_url, timeout=60000)
+            await page.wait_for_load_state('domcontentloaded', timeout=30000)
+
+            # Extrai SKU da URL
+            sku = "SKU não encontrado"
             try:
-                preco_final = float(preco_final_str)
-            except ValueError:
-                print(f'Erro ao converter preço (Amazon): {preco_final_str}')
+                match = re.search(r'/dp/([A-Z0-9]{10})', target_url)
+                if match:
+                    sku = match.group(1)
+            except Exception as e:
+                print(f"Erro ao extrair SKU: {e}")
 
-    # Extrai review (fallback)
-    review_pattern = r'(\d+\.\d+)\s*(?:de\s*5\s*estrelas|out\s*of\s*5\s*stars)'
-    review_match = re.search(review_pattern, markdown)
-    review = float(review_match.group(1)) if review_match else 4.5
+            # Extrai descrição
+            descricao = "Descrição não encontrada"
+            try:
+                desc_element = await page.locator('#productTitle').first.inner_text(timeout=10000)
+                descricao = desc_element.strip()
+            except Exception as e:
+                print(f"Erro ao extrair descrição: {e}")
 
-    # Extrai imagem
-    img_pattern = r'!\[.*?\]\((https://images-na\.ssl-images-amazon\.com/images/I/.*?\.jpg)\)'
-    img_match = re.search(img_pattern, markdown)
-    imagem = img_match.group(1) if img_match else 'Imagem não encontrada'
+            # Extrai imagem
+            imagem = "Imagem não encontrada"
+            try:
+                imagem = await page.locator('#landingImage').first.get_attribute('src', timeout=10000)
+            except Exception as e:
+                print(f"Erro ao extrair imagem: {e}")
 
-    # Monta o dicionário da loja
-    key_loja = nome_loja.lower().replace(' ', '_').replace('.', '')
-    loja = {
-        'sku': sku,
-        'loja': nome_loja,
-        'preco_final': preco_final,
-        'data_hora': datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
-        'marketplace': 'Amazon',
-        'change_price': 0,
-        'key_loja': key_loja,
-        'key_sku': f'{key_loja}_{sku}',
-        'descricao': descricao,
-        'review': review,
-        'imagem': imagem,
-        'status': 'ativo',
-    }
-    lojas.append(loja)
+            # Extrai review
+            review = 4.5
+            try:
+                # Tenta o seletor principal com aria-hidden
+                review_span = page.locator('a.a-popover-trigger.a-declarative span.a-size-base.a-color-base[aria-hidden="true"]').first
+                review_text = await review_span.inner_text(timeout=10000) or ""
+                review_text = review_text.strip()  # Remove espaços em branco
+                print(f"Texto da review capturado: '{review_text}'")
+                if review_text and re.match(r'^\d+\.\d$', review_text.replace(',', '.')):
+                    review = float(review_text.replace(',', '.'))
+                else:
+                    print("Review não encontrada ou inválida, tentando fallback.")
+                    # Tenta o seletor de fallback
+                    review_span_fallback = page.locator('span.a-size-base.a-color-base').first
+                    review_text_fallback = await review_span_fallback.inner_text(timeout=10000) or ""
+                    review_text_fallback = review_text_fallback.strip()  # Remove espaços em branco
+                    print(f"Texto da review (fallback): '{review_text_fallback}'")
+                    if review_text_fallback and re.match(r'^\d+\.\d$', review_text_fallback.replace(',', '.')):
+                        review = float(review_text_fallback.replace(',', '.'))
+                    else:
+                        print("Review não encontrada no fallback, usando padrão 4.5")
+            except Exception as e:
+                print(f"Erro ao extrair review: {e}")
+
+            # Extrai vendedor e preço da página principal
+            try:
+                seller_name = "Não informado"
+                preco_final = 0.0
+                try:
+                    seller = page.locator("#sellerProfileTriggerId").first
+                    seller_name = await seller.inner_text(timeout=10000) or "Não informado"
+                    seller_name = re.sub(r'Vendido por\s*', '', seller_name).strip()
+
+                    price_span = page.locator('div.a-section.a-spacing-micro span.a-offscreen').first
+                    price_text_raw = await price_span.inner_text(timeout=10000) or "0.00"
+                    price_text = re.sub(r'[^\d,.]', '', price_text_raw).replace(',', '.')
+                    if re.match(r'^\d+\.\d+$', price_text):
+                        preco_final = float(price_text)
+                    else:
+                        print(f"Preço inválido na página principal: {price_text}")
+
+                    if seller_name != "Não informado" and preco_final > 0.0:
+                        key_loja = seller_name.lower().replace(' ', '')
+                        key_sku = f"{key_loja}_{sku}" if sku != "SKU não encontrado" else f"{key_loja}_sem_sku"
+                        lojas.append({
+                            'sku': sku,
+                            'loja': seller_name,
+                            'preco_final': preco_final,
+                            'data_hora': datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                            'marketplace': 'Amazon',
+                            'key_loja': key_loja,
+                            'key_sku': key_sku,
+                            'descricao': descricao,
+                            'review': review,
+                            'imagem': imagem,
+                            'status': 'ativo'
+                        })
+                        print(f"Vendedor principal capturado: {seller_name}, Preço: {preco_final}")
+                except Exception as e:
+                    print(f"Erro ao extrair vendedor/preço da página principal: {e}")
+            except Exception as e:
+                print(f"Erro geral ao processar vendedor principal: {e}")
+
+            # Acessa a página de outras ofertas
+            try:
+                compare_button = page.get_by_role("button", name=re.compile("Comparar outras.*ofertas|Ver todas as ofertas"))
+                await compare_button.wait_for(state='visible', timeout=20000)
+                await compare_button.click()
+                print("Botão de comparação clicado")
+
+                details_link = page.get_by_role("link", name="Ver mais detalhes sobre esta")
+                await details_link.wait_for(state='visible', timeout=20000)
+                await details_link.click()
+                print("Link 'Ver mais detalhes sobre esta' clicado")
+            except Exception as e:
+                print(f"Erro ao acessar página de ofertas: {e}")
+                return lojas
+
+            # Aguarda carregamento da página de ofertas
+            await page.wait_for_load_state('domcontentloaded', timeout=30000)
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await page.wait_for_timeout(5000)  # Aumentado para garantir carregamento dinâmico
+
+            # Extrai ofertas
+            try:
+                await page.wait_for_selector("#aod-offer", timeout=20000)
+                offer_elements = await page.locator("#aod-offer").all()
+                print(f"Encontradas {len(offer_elements)} ofertas")
+                for i, offer in enumerate(offer_elements, 1):
+                    try:
+                        # Extrai preço
+                        preco_final = 0.0
+                        try:
+                            price_span = offer.locator('span.aok-offscreen').first
+                            price_text_raw = await price_span.inner_text(timeout=10000) or "0.00"
+                            price_text = re.sub(r'[^\d,.]', '', price_text_raw).replace(',', '.')
+                            if re.match(r'^\d+\.\d+$', price_text):
+                                preco_final = float(price_text)
+                            else:
+                                print(f"Preço inválido na oferta {i}: {price_text}")
+                        except Exception:
+                            try:
+                                price_whole = await offer.locator("span.a-price-whole").first.inner_text(timeout=10000) or "0"
+                                price_fraction = await offer.locator("span.a-price-fraction").first.inner_text(timeout=10000) or "00"
+                                price_text = f"{re.sub(r'[^\d]', '', price_whole)}.{price_fraction}"
+                                if re.match(r'^\d+\.\d+$', price_text):
+                                    preco_final = float(price_text)
+                                else:
+                                    print(f"Preço inválido na oferta {i} (fallback): {price_text}")
+                            except Exception as e:
+                                print(f"Erro ao extrair preço na oferta {i}: {e}")
+
+                        # Extrai vendedor
+                        seller_name = "Não informado"
+                        try:
+                            seller = offer.locator("a.a-size-small.a-link-normal").first
+                            seller_name = await seller.inner_text(timeout=10000) or "Não informado"
+                            seller_name = re.sub(r'Vendido por\s*', '', seller_name).strip()
+                        except Exception as e:
+                            print(f"Erro ao extrair vendedor na oferta {i}: {e}")
+
+                        # Evita duplicatas
+                        if any(s['loja'] == seller_name for s in lojas):
+                            print(f"Vendedor {seller_name} já capturado, ignorando duplicata")
+                            continue
+
+                        # Monta dicionário da oferta
+                        key_loja = seller_name.lower().replace(' ', '')
+                        key_sku = f"{key_loja}_{sku}" if sku != "SKU não encontrado" else f"{key_loja}_sem_sku"
+                        lojas.append({
+                            'sku': sku,
+                            'loja': seller_name,
+                            'preco_final': preco_final,
+                            'data_hora': datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                            'marketplace': 'Amazon',
+                            'key_loja': key_loja,
+                            'key_sku': key_sku,
+                            'descricao': descricao,
+                            'review': review,
+                            'imagem': imagem,
+                            'status': 'ativo'
+                        })
+                        print(f"Oferta {i} capturada: {seller_name}, Preço: {preco_final}")
+                    except Exception as e:
+                        print(f"Erro ao processar oferta {i}: {e}")
+                        continue
+            except Exception as e:
+                print(f"Erro ao extrair ofertas: {e}")
+
+        except Exception as e:
+            print(f"Erro geral ao processar {target_url}: {e}")
+        finally:
+            await context.storage_state(path="amz_auth.json")
+            await context.close()
+            await browser.close()
 
     return lojas
 
@@ -183,7 +315,6 @@ def extract_data_from_markdown_beleza(markdown):
             'preco_final': preco_final,
             'data_hora': datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
             'marketplace': 'Beleza na Web',
-            'change_price': 0,
             'key_loja': key_loja,
             'key_sku': f'{key_loja}_{sku}',
             'descricao': descricao,
@@ -208,7 +339,7 @@ async def extract_data_from_meli(url: str) -> list:
     lojas = []
     
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=False)
         try:
             context = await browser.new_context()
             
@@ -283,7 +414,6 @@ async def extract_data_from_meli(url: str) -> list:
                             'preco_final': float(item.get('price', 0.0)),
                             'data_hora': datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
                             'marketplace': 'Mercado Livre',
-                            'change_price': 0,
                             'key_loja': key_loja,
                             'key_sku': f'{key_loja}_{sku}' if key_loja and sku else None,
                             'descricao': descricao,
@@ -310,15 +440,15 @@ async def extract_data_from_meli(url: str) -> list:
     return lojas
 
 async def crawl_url(crawler, url, max_retries=3):
-    """Extrai dados de uma URL usando Crawl4AI ou Playwright (para Mercado Livre) com re-tentativas."""
+    """Extrai dados de uma URL usando Crawl4AI ou Playwright (para Mercado Livre e Amazon) com re-tentativas."""
     for attempt in range(max_retries):
         try:
-            print(
-                f'Extraindo dados da URL: {url} (Tentativa {attempt + 1}/{max_retries})'
-            )
+            print(f'Extraindo dados da URL: {url} (Tentativa {attempt + 1}/{max_retries})')
             if 'mercadolivre' in url.lower():
                 lojas = await extract_data_from_meli(url)
-            else:
+            elif 'amazon' in url.lower():
+                lojas = await extract_data_from_amazon(url)  # Usa await em vez de asyncio.run
+            elif 'belezanaweb' in url.lower():
                 result = await crawler.arun(
                     url=url,
                     timeout=180,
@@ -330,14 +460,10 @@ async def crawl_url(crawler, url, max_retries=3):
                 )
                 markdown_content = result.markdown
                 print('Markdown gerado:')
-
-                if 'amazon' in url.lower():
-                    lojas = extract_data_from_markdown_amazon(markdown_content)
-                elif 'belezanaweb' in url.lower():
-                    lojas = extract_data_from_markdown_beleza(markdown_content)
-                else:
-                    print(f'URL não reconhecida: {url}')
-                    return []
+                lojas = extract_data_from_markdown_beleza(markdown_content)
+            else:
+                print(f'URL não reconhecida: {url}')
+                return []
 
             if not lojas:
                 print(f'Sem dados ou SKU não encontrado para {url}')
@@ -349,14 +475,10 @@ async def crawl_url(crawler, url, max_retries=3):
                 print('Tentando novamente...')
                 await asyncio.sleep(2)
             else:
-                print(
-                    f'Erro ao crawlear a URL {url} após {max_retries} tentativas: {e}'
-                )
+                print(f'Erro ao crawlear a URL {url} após {max_retries} tentativas: {e}')
                 return []
         except Exception as e:
-            print(
-                f'Erro ao crawlear a URL {url} na tentativa {attempt + 1}: {e}'
-            )
+            print(f'Erro ao crawlear a URL {url} na tentativa {attempt + 1}: {e}')
             return []
 
 async def send_to_api(data):
@@ -373,7 +495,7 @@ async def send_to_api(data):
 
 async def update_to_api(data):
     """Atualiza os dados dos vendedores na API (PUT)."""
-    api_url = 'http://34.233.35.91:8000/api/products'
+    api_url = 'https://www.price.kamico.com.br/api/products'
     async with aiohttp.ClientSession() as session:
         try:
             async with session.put(
@@ -442,17 +564,8 @@ async def process_urls(urls):
             else:
                 print(f'Sem dados para {url}, marcando para lista de URLs sem dados')
                 sem_dados.append(url)
+            time.sleep(1)
 
     save_sem_dados_urls(sem_dados)
     print(f'Processamento concluído: {processed_count}/{total_urls} URLs processadas')
     print(f'Resultados: {successful_urls} URLs bem-sucedidas, {len(sem_dados)} URLs falharam, {len(sem_dados)} URLs sem dados')
-
-if __name__ == "__main__":
-    url = "https://www.mercadolivre.com.br/shampoo-higienizando-widi-care-a-juba-500ml-limpeza-inteligente/p/MLB19860817/s?"
-    result = asyncio.run(extract_data_from_meli(url))
-    if result:
-        print("\nDados dos vendedores extraídos:")
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        print(f"\nTotal de vendedores: {len(result)}")
-    else:
-        print("Nenhum dado foi extraído")
