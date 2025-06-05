@@ -32,7 +32,7 @@ async def extract_data_from_amazon(target_url: str) -> list:
         return lojas
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)  # Mantido como False para depuração
+        browser = await p.chromium.launch(headless=True)  # Mantido como False para depuração
         try:
             # Carrega cookies do arquivo amz_auth.json
             with open(storage_file, 'r') as f:
