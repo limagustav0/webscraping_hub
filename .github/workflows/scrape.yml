@@ -2,7 +2,7 @@ name: Web Scraping Workflow
 
 on:
   schedule:
-    - cron: '*/20 * * * *'  # Runs every 20 minutes
+    - cron: '*/35 * * * *'  # Runs every 20 minutes
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
