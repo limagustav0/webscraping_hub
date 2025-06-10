@@ -339,7 +339,7 @@ async def extract_data_from_meli(url: str) -> list:
     lojas = []
     
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         try:
             context = await browser.new_context()
             
