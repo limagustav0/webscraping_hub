@@ -237,11 +237,6 @@ async def run_combined_crawler():
         
         # Valida URLs para evitar concatenações ou formatos inválidos
         valid_urls = []
-        for url in sem_dado + combined_urls:
-            if re.match(r'^https?://', url) and ' ' not in url:  # Verifica se é uma URL válida
-                valid_urls.append(url)
-            else:
-                print(f"URL inválida ignorada: {url}")
         
         # Remove duplicatas mantendo a ordem
         combined_urls = list(dict.fromkeys(valid_urls))
