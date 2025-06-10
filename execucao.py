@@ -231,15 +231,6 @@ async def run_combined_crawler():
             'https://www.belezanaweb.com.br/cadiveu-professional-acai-oil-oleo-de-tratamento-60ml/ofertas-marketplace',
             'https://www.belezanaweb.com.br/cadiveu-professional-acai-oil-oleo-de-acai-110ml/ofertas-marketplace',
         ]
-
-        # Carrega URLs que falharam anteriormente
-        sem_dado = carregar_sem_dados_url()
-        
-        # Valida URLs para evitar concatenações ou formatos inválidos
-        valid_urls = []
-        
-        # Remove duplicatas mantendo a ordem
-        combined_urls = list(dict.fromkeys(valid_urls))
         
         await process_urls(combined_urls)
     except Exception as e:
