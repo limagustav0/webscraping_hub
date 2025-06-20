@@ -302,6 +302,12 @@ async def run_combined_crawler():
             'https://www.belezanaweb.com.br/brae-fiber-mask-efeito-teia-mascara-capilar-500g/ofertas-marketplace',
             'https://www.belezanaweb.com.br/cadiveu-professional-glamour-essentials-shampoo-250ml',
             'https://www.belezanaweb.com.br/brae-divine-home-care-mascara-capilar-200g/ofertas-marketplace',
+            "https://www.belezanaweb.com.br/senscience-inner-restore-mascara-capilar-500ml/ofertas-marketplace",
+            "https://www.belezanaweb.com.br/senscience-cpr-step-0-shampoo-1l/ofertas-marketplace",
+            "https://www.belezanaweb.com.br/senscience-silk-moisture-shampoo-1l/ofertas-marketplace",
+            "https://www.belezanaweb.com.br/senscience-silk-moisture-shampoo-280ml/ofertas-marketplace",
+            "https://www.belezanaweb.com.br/senscience-inner-restore-intensif-mascara-capilar-de-500ml/ofertas-marketplace",
+            "https://www.belezanaweb.com.br/senscience-balance-condicionador-240ml/ofertas-marketplace",
         ]
         
         await process_urls(combined_urls)
