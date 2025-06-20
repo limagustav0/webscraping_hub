@@ -18,7 +18,7 @@ async def run_combined_crawler():
             'https://www.belezanaweb.com.br/wella-professionals-invigo-color-brilliance-shampoo-1-litro/ofertas-marketplace',
             'https://www.mercadolivre.com.br/shampoo-higienizando-widi-care-a-juba-500ml-limpeza-inteligente/p/MLB19860817/s?',
             'https://www.mercadolivre.com.br/acidificante-widi-care-acidificando-a-juba-500ml/p/MLB36742897/s?',
-            'https://www.mercadolivre.com.br/wella-mascara-oil-reflections-500ml/p/MLB19512787/s?'
+            'https://www.mercadolivre.com.br/wella-mascara-oil-reflections-500ml/p/MLB19512787/s?',
             'https://www.belezanaweb.com.br/wella-professionals-invigo-color-brilliance-shampoo-1-litro/ofertas-marketplace',
             'https://www.belezanaweb.com.br/wella-professionals-invigo-color-brilliance-mascara-capilar-500ml/ofertas-marketplace',
             'https://www.belezanaweb.com.br/wella-professionals-invigo-nutrienrich-shampoo-1-litro/ofertas-marketplace',
