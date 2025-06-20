@@ -11,6 +11,7 @@ async def run_combined_crawler():
     print(f'Executando scrape_combined_crawl4ai.py às {datetime.now()}')
     try:
         combined_urls = [
+            'https://www.belezanaweb.com.br/wella-professionals-fusion-mascara-reparadora-500ml/ofertas-marketplace',
             'https://www.belezanaweb.com.br/wella-professionals-fusion-condicionador-1-litro/ofertas-marketplace',
             'https://www.belezanaweb.com.br/wella-professionals-fusion-shampoo-1000ml/ofertas-marketplace',
             'https://www.belezanaweb.com.br/wella-professionals-invigo-color-brilliance-condicionador-1-litro/ofertas-marketplace',
