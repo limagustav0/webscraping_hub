@@ -311,6 +311,10 @@ async def run_combined_crawler():
             "https://www.belezanaweb.com.br/senscience-silk-moisture-shampoo-280ml/ofertas-marketplace",
             "https://www.belezanaweb.com.br/senscience-inner-restore-intensif-mascara-capilar-de-500ml/ofertas-marketplace",
             "https://www.belezanaweb.com.br/senscience-balance-condicionador-240ml/ofertas-marketplace",
+            "https://www.belezanaweb.com.br/senscience-true-hue-color-serum-capilar-55ml/ofertas-marketplace",
+            "https://www.belezanaweb.com.br/senscience-balance-shampoo-280ml/ofertas-marketplace",
+            "https://www.belezanaweb.com.br/senscience-smooth-shampoo-1000ml/ofertas-marketplace",
+            "https://www.belezanaweb.com.br/senscience-silk-moisture-condicionador-1l/ofertas-marketplace",
         ]
         
         await process_urls(combined_urls)
