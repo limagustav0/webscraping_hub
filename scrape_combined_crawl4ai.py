@@ -12,6 +12,120 @@ import json
 from pprint import pprint
 import time
 
+
+async def scrape_epoca_cosmeticos(url):
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=False)
+        context = await browser.new_context()
+        page = await context.new_page()
+        await page.goto(url)
+        await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_timeout(3000)
+
+        # Extrair SKU da URL
+        sku = None
+        try:
+            match = re.search(r'q=([\d]+)', url)
+            sku = match.group(1) if match else None
+        except Exception as e:
+            print(f"Erro ao extrair SKU: {e}")
+        if not sku:
+            print(f'SKU não encontrado na URL: {url}')
+            return []
+
+        products = await page.query_selector_all('div[data-testid="productItemComponent"]')
+        lojas = []
+
+        for idx, product in enumerate(products):
+            try:
+                # Nome do produto
+                nome = await product.query_selector('.name')
+                nome = await nome.inner_text() if nome else ""
+                nome = nome.strip()
+                
+                # Preço (pega o preço à vista, se disponível)
+                preco_el = await product.query_selector('.product-price_spotPrice__k_4YC')
+                if not preco_el:
+                    preco_el = await product.query_selector('.product-price_priceList__uepac')
+                preco = await preco_el.inner_text() if preco_el else ""
+                preco_final_str = re.sub(r"[^\d,]", "", preco).replace(",", ".")
+                preco_final = float(preco_final_str) if preco_final_str else 0.0
+                
+                # Review (pega o número entre parênteses)
+                review = 4.5  # Valor padrão, como na Beleza na Web
+                review_el = await product.query_selector('.rate p')
+                if review_el:
+                    review_text = await review_el.inner_text()
+                    review_text = review_text.strip()
+                    match = re.search(r"\(([0-9.,]+)\)", review_text)
+                    if match:
+                        review = float(match.group(1).replace(",", "."))
+                
+                # Imagem
+                img_el = await product.query_selector("img")
+                imagem = await img_el.get_attribute("src") if img_el else ""
+                if imagem and imagem.startswith("//"):
+                    imagem = f"https:{imagem}"
+                
+                # Link
+                link_el = await product.query_selector('a[data-content-item="true"]')
+                link = await link_el.get_attribute("href") if link_el else ""
+                if link and not link.startswith("http"):
+                    link = "https://www.epocacosmeticos.com.br" + link
+
+                # Abre nova aba para detalhes
+                detail_page = await context.new_page()
+                await detail_page.goto(link)
+                await detail_page.wait_for_load_state("domcontentloaded")
+                await detail_page.wait_for_timeout(1500)
+                
+                # Descrição (curta)
+                descricao = ""
+                desc_el = await detail_page.query_selector('p[data-product-title="true"]')
+                if desc_el:
+                    descricao = await desc_el.inner_text()
+                    descricao = descricao.strip()
+                else:
+                    meta_desc = await detail_page.query_selector('meta[name="description"]')
+                    if meta_desc:
+                        descricao = await meta_desc.get_attribute("content")
+                
+                # Nome da loja (quem vende e entrega)
+                loja = "Época Cosméticos"
+                loja_el = await detail_page.query_selector('.pdp-buybox-seller_sellerInfo__BmOa4 a span')
+                if loja_el:
+                    loja = await loja_el.inner_text()
+                    loja = loja.strip()
+                
+                await detail_page.close()
+
+                data_hora = datetime.utcnow().isoformat() + "Z"
+                status = "ativo"
+                marketplace = "Época Cosméticos"
+                key_loja = loja.lower().replace(" ", "")
+                key_sku = f"{key_loja}_{sku}" if sku else None
+
+                result = {
+                    "sku": sku if sku else "SKU não encontrado",
+                    "loja": loja,
+                    "preco_final": preco_final,
+                    "data_hora": data_hora,
+                    "marketplace": marketplace,
+                    "key_loja": key_loja,
+                    "key_sku": key_sku,
+                    "descricao": descricao,
+                    "review": review,
+                    "imagem": imagem,
+                    "status": status
+                }
+                lojas.append(result)
+            except Exception as e:
+                print(f"Erro ao processar produto {idx}: {e}")
+
+        await context.close()
+        await browser.close()
+        return lojas                
+
 async def extract_data_from_amazon(target_url: str) -> list:
     """
     Extrai dados de vendedores de uma página de produto da Amazon, incluindo vendedor principal
@@ -447,7 +561,9 @@ async def crawl_url(crawler, url, max_retries=3):
             if 'mercadolivre' in url.lower():
                 lojas = await extract_data_from_meli(url)
             elif 'amazon' in url.lower():
-                lojas = await extract_data_from_amazon(url)  # Usa await em vez de asyncio.run
+                lojas = await extract_data_from_amazon(url)
+            elif 'epoca' in url.lower():
+                lojas = await scrape_epoca_cosmeticos(url)  # Usa await em vez de asyncio.run
             elif 'belezanaweb' in url.lower():
                 result = await crawler.arun(
                     url=url,
@@ -569,3 +685,11 @@ async def process_urls(urls):
     save_sem_dados_urls(sem_dados)
     print(f'Processamento concluído: {processed_count}/{total_urls} URLs processadas')
     print(f'Resultados: {successful_urls} URLs bem-sucedidas, {len(sem_dados)} URLs falharam, {len(sem_dados)} URLs sem dados')
+
+if __name__ == "__main__":
+    urls = [
+        "https://www.belezanaweb.com.br/wella-professionals-invigo-color-brilliance-condicionador-1-litro/ofertas-marketplace",
+        "https://www.epocacosmeticos.com.br/pesquisa?q=8005610672427",
+        # Adicione outras URLs para Amazon, Beleza na Web, Mercado Livre, etc.
+    ]
+    asyncio.run(process_urls(urls))
