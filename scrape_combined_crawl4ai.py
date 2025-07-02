@@ -15,7 +15,7 @@ from playwright.sync_api import sync_playwright
 
 async def scrape_epoca_cosmeticos(url):
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
+        browser = await playwright.chromium.launch(headless=True)
         context = await browser.new_context()
         page = await context.new_page()
         await page.goto(url)
@@ -143,7 +143,6 @@ async def scrape_epoca_cosmeticos(url):
         await context.close()
         await browser.close()
         return lojas
-
 
 async def extract_data_from_amazon(target_url: str) -> list:
     """
@@ -471,7 +470,6 @@ async def extract_data_from_amazon(target_url: str) -> list:
 
     return lojas
 
-
 def extract_data_from_markdown_beleza(markdown):
     """Extrai SKU, descrição, review, imagem e dados de lojas do Markdown (Beleza na Web)."""
     lojas = []
@@ -564,7 +562,6 @@ def extract_data_from_markdown_beleza(markdown):
         lojas.append(loja)
 
     return lojas
-
 
 async def extract_data_from_meli(url: str) -> list:
     """
@@ -687,7 +684,6 @@ async def extract_data_from_meli(url: str) -> list:
 
     return lojas
 
-
 async def crawl_url(crawler, url, max_retries=3):
     """Extrai dados de uma URL usando Crawl4AI ou Playwright (para Mercado Livre e Amazon) com re-tentativas."""
     for attempt in range(max_retries):
@@ -740,7 +736,6 @@ async def crawl_url(crawler, url, max_retries=3):
             )
             return []
 
-
 async def send_to_api(data):
     """Envia os dados dos vendedores para a API (POST)."""
     api_url = os.environ.get(
@@ -758,7 +753,6 @@ async def send_to_api(data):
         except Exception as e:
             print(f'Erro ao enviar dados para a API (POST): {e}')
             return None
-
 
 async def update_to_api(data):
     """Atualiza os dados dos vendedores na API (PUT)."""
@@ -857,10 +851,3 @@ async def process_urls(urls):
     )
 
 
-if __name__ == '__main__':
-    urls = [
-        'https://www.belezanaweb.com.br/wella-professionals-invigo-color-brilliance-condicionador-1-litro/ofertas-marketplace',
-        'https://www.epocacosmeticos.com.br/pesquisa?q=8005610672427',
-        # Adicione outras URLs para Amazon, Beleza na Web, Mercado Livre, etc.
-    ]
-    asyncio.run(process_urls(urls))

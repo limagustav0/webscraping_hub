@@ -9,4 +9,4 @@ services:
     environment:
       - API_URL=https://www.price.kamico.com.br/api/products
     # Se quiser rodar outro script, altere o comando abaixo
-    command: ["python", "scrape_combined_crawl4ai.py"] 
+    command: ["python", "execucao.py"] 
