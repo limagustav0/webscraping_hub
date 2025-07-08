@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  scraping_hub:
+    build: .
+    container_name: scraping_hub
+    volumes:
+      - .:/app
+    # Descomente a linha abaixo se o seu app expõe uma porta (ex: FastAPI, Flask, etc)
+    # ports:
+    #   - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1 

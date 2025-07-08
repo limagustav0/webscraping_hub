@@ -9,6 +9,7 @@ async def run_combined_crawler():
     print(f'Executando scrape_combined_crawl4ai.py às {datetime.now()}')
     try:
         combined_urls = [
+            "https://www.amazon.com.br/dp/B0BGJ5RB67",
             'https://www.mercadolivre.com.br/shampoo-wella-invigo-nutri-enrich-1-litro-profissional/p/MLB20570794/s',
             "https://www.amazon.com.br/dp/B07KSDBVJW",
             "https://www.amazon.com.br/dp/B0DJ1QCJL9",
