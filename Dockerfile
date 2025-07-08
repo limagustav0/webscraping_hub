@@ -8,4 +8,4 @@ RUN pip install --upgrade pip && pip install -r requirements.txt \
 
 COPY . .
 
-CMD ["python", "execucao.py"] 
+CMD ["python", "scrape_combined_crawl4ai.py"] 
