@@ -844,7 +844,6 @@ async def process_urls(urls):
 
 if __name__ == "__main__":
     urls = [
-        "https://www.belezanaweb.com.br/wella-professionals-invigo-color-brilliance-condicionador-1-litro/ofertas-marketplace",
         "https://www.epocacosmeticos.com.br/pesquisa?q=8005610672427",
         # Adicione outras URLs para Amazon, Beleza na Web, Mercado Livre, etc.
     ]
