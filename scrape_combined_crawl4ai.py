@@ -20,10 +20,17 @@ async def scrape_epoca_cosmeticos(url):
         context = await browser.new_context()
         page = await context.new_page()
         print("[Época] Página criada, navegando para a URL...")
-        await page.goto(url)
-        await page.wait_for_load_state("domcontentloaded")
-        await page.wait_for_timeout(3000)
-        print("[Época] Página carregada.")
+        try:
+            await page.goto(url)
+            await page.wait_for_load_state("domcontentloaded")
+            await page.wait_for_timeout(3000)
+            print("[Época] Página carregada.")
+        except Exception as e:
+            print(f"[Época] Erro ao carregar a página: {e}")
+            print(f"[Época] Conteúdo da página: {await page.content()}")
+            await context.close()
+            await browser.close()
+            return []
 
         # Extrair SKU da URL
         sku = None
@@ -32,13 +39,24 @@ async def scrape_epoca_cosmeticos(url):
             sku = match.group(1) if match else None
         except Exception as e:
             print(f"[Época] Erro ao extrair SKU: {e}")
+            print(f"[Época] Conteúdo da página: {await page.content()}")
         if not sku:
             print(f'[Época] SKU não encontrado na URL: {url}')
+            print(f"[Época] Conteúdo da página: {await page.content()}")
+            await context.close()
+            await browser.close()
             return []
 
         print(f"[Época] SKU extraído: {sku}")
-        products = await page.query_selector_all('div[data-testid="productItemComponent"]')
-        print(f"[Época] {len(products)} produtos encontrados na página.")
+        try:
+            products = await page.query_selector_all('div[data-testid="productItemComponent"]')
+            print(f"[Época] {len(products)} produtos encontrados na página.")
+        except Exception as e:
+            print(f"[Época] Erro ao buscar produtos: {e}")
+            print(f"[Época] Conteúdo da página: {await page.content()}")
+            await context.close()
+            await browser.close()
+            return []
 
         lojas = []
 
@@ -59,10 +77,16 @@ async def scrape_epoca_cosmeticos(url):
 
                 # Abre nova aba para detalhes
                 detail_page = await context.new_page()
-                await detail_page.goto(link)
-                await detail_page.wait_for_load_state("domcontentloaded")
-                await detail_page.wait_for_timeout(1500)
-                print(f"[Época] Página de detalhes carregada.")
+                try:
+                    await detail_page.goto(link)
+                    await detail_page.wait_for_load_state("domcontentloaded")
+                    await detail_page.wait_for_timeout(1500)
+                    print(f"[Época] Página de detalhes carregada.")
+                except Exception as e:
+                    print(f"[Época] Erro ao carregar página de detalhes: {e}")
+                    print(f"[Época] Conteúdo da página de detalhes: {await detail_page.content()}")
+                    await detail_page.close()
+                    continue
 
                 # --- Validação do EAN ---
                 ean_html = None
@@ -74,8 +98,9 @@ async def scrape_epoca_cosmeticos(url):
                         ean_html = match_ean.group(1)
                 if not ean_html or ean_html != sku:
                     print(f"[Época] EAN divergente ou não encontrado: {ean_html} (esperado: {sku})")
+                    print(f"[Época] Conteúdo da página de detalhes: {await detail_page.content()}")
                     await detail_page.close()
-                    break  # Finaliza o loop ao primeiro EAN divergente
+                    continue  # Continua para o próximo produto em vez de parar
 
                 # Preço (pega o preço à vista, se disponível)
                 preco_el = await product.query_selector('.product-price_spotPrice__k_4YC')
@@ -87,12 +112,12 @@ async def scrape_epoca_cosmeticos(url):
                 print(f"[Época] Preço final: {preco_final}")
 
                 # Review (pega o número entre parênteses)
-                review = 4.5  # Valor padrão, como na Beleza na Web
+                review = 4.5  # Valor padrão
                 review_el = await product.query_selector('.rate p')
                 if review_el:
                     review_text = await review_el.inner_text()
                     review_text = review_text.strip()
-                    match = re.search(r"\\(([0-9.,]+)\\)", review_text)
+                    match = re.search(r'\(([0-9.,]+)\)', review_text)
                     if match:
                         review = float(match.group(1).replace(",", "."))
                 print(f"[Época] Review: {review}")
@@ -149,6 +174,10 @@ async def scrape_epoca_cosmeticos(url):
                 lojas.append(result)
             except Exception as e:
                 print(f"[Época] Erro ao processar produto {idx}: {e}")
+                print(f"[Época] Conteúdo da página: {await page.content()}")
+                if 'detail_page' in locals():
+                    print(f"[Época] Conteúdo da página de detalhes: {await detail_page.content()}")
+                    await detail_page.close()
 
         await context.close()
         await browser.close()
