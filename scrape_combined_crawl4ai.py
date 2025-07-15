@@ -28,7 +28,11 @@ async def scrape_epoca_cosmeticos(url):
                 await page.wait_for_load_state("domcontentloaded", timeout=30000)
                 await page.wait_for_timeout(3000)
                 print("[Época] Página carregada.")
-                await page.content()
+                content = await page.content()  # Armazena o resultado
+                print(content[:2000])  # Fatiamento na string
+                await context.close()
+                await browser.close()
+                return content
             except PlaywrightError as e:
                 print(f"[Época] Erro ao carregar a página: {e}")
                 try:
