@@ -18,22 +18,18 @@ async def scrape_epoca_cosmeticos(url):
     async with async_playwright() as playwright:
         try:
             browser = await playwright.chromium.launch(headless=True)  # Headless para servidor
+            # Carrega o storage_state do arquivo epoca_auth.json
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                storage_state="epoca_auth.json"  # Car cookies do arquivo
             )
             page = await context.new_page()
             print("[Época] Página criada, navegando para a URL...")
             try:
                 await page.goto(url, timeout=30000)
-                await page.wait_for_load_state("domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(3000)
+                await page.wait_for_load_state("load", timeout=30000)  # Alterado para "load"
                 print("[Época] Página carregada.")
-                content = await page.content()  # Armazena o resultado
-                print(content[:2000])  # Fatiamento na string
-                await context.close()
-                await browser.close()
-                return content
-            except Exception as e:
+            except PlaywrightTimeoutError as e:
                 print(f"[Época] Erro ao carregar a página: {e}")
                 try:
                     content = await page.content()  # Armazena o resultado
@@ -43,9 +39,6 @@ async def scrape_epoca_cosmeticos(url):
                 await context.close()
                 await browser.close()
                 return []
-        except Exception as e:
-            print(f"[Época] Erro geral na raspagem: {e}")
-            return []
 
             # Extrair SKU da URL
             sku = None
@@ -55,7 +48,8 @@ async def scrape_epoca_cosmeticos(url):
             except Exception as e:
                 print(f"[Época] Erro ao extrair SKU: {e}")
                 try:
-                    print(f"[Época] Conteúdo da página: {await page.content()[:2000]}")
+                    content = await page.content()  # Armazena o resultado
+                    print(f"[Época] Conteúdo da página: {content[:2000]}")
                 except Exception as content_error:
                     print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
                 await context.close()
@@ -65,7 +59,8 @@ async def scrape_epoca_cosmeticos(url):
             if not sku:
                 print(f"[Época] SKU não encontrado na URL: {url}")
                 try:
-                    print(f"[Época] Conteúdo da página: {await page.content()[:2000]}")
+                    content = await page.content()  # Armazena o resultado
+                    print(f"[Época] Conteúdo da página: {content[:2000]}")
                 except Exception as content_error:
                     print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
                 await context.close()
@@ -79,16 +74,18 @@ async def scrape_epoca_cosmeticos(url):
                 if len(products) == 0:
                     print(f"[Época] Nenhum produto encontrado, conteúdo da página:")
                     try:
-                        print(f"{await page.content()[:2000]}")
+                        content = await page.content()  # Armazena o resultado
+                        print(f"{content[:2000]}")
                     except Exception as content_error:
                         print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
                     await context.close()
                     await browser.close()
                     return []
-            except PlaywrightError as e:
+            except Exception as e:
                 print(f"[Época] Erro ao buscar produtos: {e}")
                 try:
-                    print(f"[Época] Conteúdo da página: {await page.content()[:2000]}")
+                    content = await page.content()  # Armazena o resultado
+                    print(f"[Época] Conteúdo da página: {content[:2000]}")
                 except Exception as content_error:
                     print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
                 await context.close()
@@ -116,13 +113,13 @@ async def scrape_epoca_cosmeticos(url):
                     detail_page = await context.new_page()
                     try:
                         await detail_page.goto(link, timeout=30000)
-                        await detail_page.wait_for_load_state("domcontentloaded", timeout=30000)
-                        await detail_page.wait_for_timeout(1500)
+                        await detail_page.wait_for_load_state("load", timeout=30000)  # Alterado para "load"
                         print(f"[Época] Página de detalhes carregada.")
-                    except PlaywrightError as e:
+                    except PlaywrightTimeoutError as e:
                         print(f"[Época] Erro ao carregar página de detalhes: {e}")
                         try:
-                            print(f"[Época] Conteúdo da página de detalhes: {await detail_page.content()[:2000]}")
+                            content = await detail_page.content()  # Armazena o resultado
+                            print(f"[Época] Conteúdo da página de detalhes: {content[:2000]}")
                         except Exception as content_error:
                             print(f"[Época] Erro ao obter conteúdo da página de detalhes: {content_error}")
                         await detail_page.close()
@@ -139,7 +136,8 @@ async def scrape_epoca_cosmeticos(url):
                     if not ean_html or ean_html != sku:
                         print(f"[Época] EAN divergente ou não encontrado: {ean_html} (esperado: {sku})")
                         try:
-                            print(f"[Época] Conteúdo da página de detalhes: {await detail_page.content()[:2000]}")
+                            content = await detail_page.content()  # Armazena o resultado
+                            print(f"[Época] Conteúdo da página de detalhes: {content[:2000]}")
                         except Exception as content_error:
                             print(f"[Época] Erro ao obter conteúdo da página de detalhes: {content_error}")
                         await detail_page.close()
@@ -218,9 +216,11 @@ async def scrape_epoca_cosmeticos(url):
                 except Exception as e:
                     print(f"[Época] Erro ao processar produto {idx}: {e}")
                     try:
-                        print(f"[Época] Conteúdo da página: {await page.content()[:2000]}")
+                        content = await page.content()  # Armazena o resultado
+                        print(f"[Época] Conteúdo da página: {content[:2000]}")
                         if 'detail_page' in locals():
-                            print(f"[Época] Conteúdo da página de detalhes: {await detail_page.content()[:2000]}")
+                            content_detail = await detail_page.content()  # Armazena o resultado
+                            print(f"[Época] Conteúdo da página de detalhes: {content_detail[:2000]}")
                     except Exception as content_error:
                         print(f"[Época] Erro ao obter conteúdo: {content_error}")
                     if 'detail_page' in locals():
@@ -233,7 +233,8 @@ async def scrape_epoca_cosmeticos(url):
         except Exception as e:
             print(f"[Época] Erro geral na raspagem: {e}")
             try:
-                print(f"[Época] Conteúdo da página: {await page.content()[:2000]}")
+                content = await page.content()  # Armazena o resultado
+                print(f"[Época] Conteúdo da página: {content[:2000]}")
             except Exception as content_error:
                 print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
             await context.close()

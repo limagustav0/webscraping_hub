@@ -3,7 +3,7 @@ file.json
 meli_auth.json
 meli.json
 amz_auth.json
-
+epoca_auth.json
 # Ambiente virtual
 venv/
 env/
