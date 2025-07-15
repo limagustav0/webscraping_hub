@@ -33,15 +33,19 @@ async def scrape_epoca_cosmeticos(url):
                 await context.close()
                 await browser.close()
                 return content
-            except PlaywrightError as e:
+            except Exception as e:
                 print(f"[Época] Erro ao carregar a página: {e}")
                 try:
-                    print(f"[Época] Conteúdo da página: {await page.content()[:2000]}")
+                    content = await page.content()  # Armazena o resultado
+                    print(f"[Época] Conteúdo da página: {content[:2000]}")
                 except Exception as content_error:
                     print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
                 await context.close()
                 await browser.close()
                 return []
+        except Exception as e:
+            print(f"[Época] Erro geral na raspagem: {e}")
+            return []
 
             # Extrair SKU da URL
             sku = None
