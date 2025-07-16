@@ -18,16 +18,9 @@ async def scrape_epoca_cosmeticos(url):
     async with async_playwright() as playwright:
         try:
             # Configuração do proxy
-            proxy_config = {
-                "server": "http://45.233.90.10:443",
-                # Se o proxy requer autenticação, descomente e preencha as linhas abaixo
-                # "username": "seu_usuario",
-                # "password": "sua_senha"
-            }
             
             browser = await playwright.chromium.launch(
                 headless=False,  # Headless para servidor
-                proxy=proxy_config  # Adiciona o proxy à configuração do navegador
             )
             # Carrega o storage_state do arquivo epoca_auth.json
             context = await browser.new_context(
