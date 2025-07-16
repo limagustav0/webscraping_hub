@@ -1,15 +1,10 @@
-from playwright.sync_api import sync_playwright
-from playwright_stealth import stealth_sync
+import asyncio
+from crawl4ai import AsyncWebCrawler
 
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False)
-    context = browser.new_context()
-    page = context.new_page()
+async def main():
+    async with AsyncWebCrawler() as crawler:
+        result = await crawler.arun("https://www.epocacosmeticos.com.br/pesquisa?q=4064666318356")
+        print(result.markdown[:300])  # Print first 300 chars
 
-    stealth_sync(page)
-
-    page.goto("https://www.epocacosmeticos.com.br/pesquisa?q=4064666318356")
-
-    page.screenshot(path="screenshot.png")
-
-    print(page.content())
+if __name__ == "__main__":
+    asyncio.run(main())
