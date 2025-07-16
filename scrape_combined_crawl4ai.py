@@ -17,55 +17,43 @@ async def scrape_epoca_cosmeticos(url):
     print(f"[Época] Iniciando raspagem para: {url}")
     async with async_playwright() as playwright:
         try:
-            # Configuração do proxy
-            
             browser = await playwright.chromium.launch(
-                headless=False,  # Headless para servidor
+                headless=False,
             )
-            # Carrega o storage_state do arquivo epoca_auth.json
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                storage_state="epoca_auth.json"
             )
             page = await context.new_page()
             print("[Época] Página criada, navegando para a URL...")
+
             try:
-                await page.goto(url, timeout=30000)
-                await page.wait_for_load_state("load", timeout=30000)  # Alterado para "load"
+                await page.goto(url, timeout=600000)
+                await asyncio.sleep(50)  # substituto correto para time.sleep
+                await page.wait_for_load_state("load", timeout=60000)
                 print("[Época] Página carregada.")
-            except PlaywrightTimeoutError as e:
+            except Exception as e:
                 print(f"[Época] Erro ao carregar a página: {e}")
                 try:
-                    content = await page.content()  # Armazena o resultado
+                    await page.wait_for_load_state("domcontentloaded", timeout=10000)
+                    content = await page.content()
+                    await page.screenshot()
                     print(f"[Época] Conteúdo da página: {content[:2000]}")
                 except Exception as content_error:
                     print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
+                await asyncio.sleep(50)
                 await context.close()
                 await browser.close()
                 return []
 
             # Extrair SKU da URL
-            sku = None
             try:
                 match = re.search(r'q=([\d]+)', url)
                 sku = match.group(1) if match else None
+                if not sku:
+                    raise ValueError("SKU não encontrado na URL")
             except Exception as e:
                 print(f"[Época] Erro ao extrair SKU: {e}")
-                try:
-                    content = await page.content()  # Armazena o resultado
-                    print(f"[Época] Conteúdo da página: {content[:2000]}")
-                except Exception as content_error:
-                    print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
-                await context.close()
-                await browser.close()
-                return []
-
-            if not sku:
-                print(f"[Época] SKU não encontrado na URL: {url}")
-                try:
-                    content = await page.content()  # Armazena o resultado
-                    print(f"[Época] Conteúdo da página: {content[:2000]}")
-                except Exception as content_error:
-                    print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
                 await context.close()
                 await browser.close()
                 return []
@@ -75,22 +63,13 @@ async def scrape_epoca_cosmeticos(url):
                 products = await page.query_selector_all('div[data-testid="productItemComponent"]')
                 print(f"[Época] {len(products)} produtos encontrados na página.")
                 if len(products) == 0:
-                    print(f"[Época] Nenhum produto encontrado, conteúdo da página:")
-                    try:
-                        content = await page.content()  # Armazena o resultado
-                        print(f"{content[:2000]}")
-                    except Exception as content_error:
-                        print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
+                    content = await page.content()
+                    print(f"{content[:2000]}")
                     await context.close()
                     await browser.close()
                     return []
             except Exception as e:
                 print(f"[Época] Erro ao buscar produtos: {e}")
-                try:
-                    content = await page.content()  # Armazena o resultado
-                    print(f"[Época] Conteúdo da página: {content[:2000]}")
-                except Exception as content_error:
-                    print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
                 await context.close()
                 await browser.close()
                 return []
@@ -100,35 +79,33 @@ async def scrape_epoca_cosmeticos(url):
             for idx, product in enumerate(products):
                 print(f"[Época] Processando produto {idx+1}/{len(products)}")
                 try:
-                    # Nome do produto
-                    nome = await product.query_selector('.name')
-                    nome = await nome.inner_text() if nome else ""
+                    nome_el = await product.query_selector('.name')
+                    nome = await nome_el.inner_text() if nome_el else ""
                     nome = nome.strip()
                     print(f"[Época] Nome do produto: {nome}")
 
-                    # Link
                     link_el = await product.query_selector('a[data-content-item="true"]')
                     link = await link_el.get_attribute("href") if link_el else ""
                     if link and not link.startswith("http"):
                         link = "https://www.epocacosmeticos.com.br" + link
 
-                    # Abre nova aba para detalhes
                     detail_page = await context.new_page()
                     try:
-                        await detail_page.goto(link, timeout=30000)
-                        await detail_page.wait_for_load_state("load", timeout=30000)  # Alterado para "load"
+                        await detail_page.goto(link, timeout=60000)
+                        await detail_page.wait_for_load_state("load", timeout=60000)
                         print(f"[Época] Página de detalhes carregada.")
-                    except PlaywrightTimeoutError as e:
+                    except Exception as e:
                         print(f"[Época] Erro ao carregar página de detalhes: {e}")
                         try:
-                            content = await detail_page.content()  # Armazena o resultado
-                            print(f"[Época] Conteúdo da página de detalhes: {content[:2000]}")
-                        except Exception as content_error:
-                            print(f"[Época] Erro ao obter conteúdo da página de detalhes: {content_error}")
+                            await detail_page.wait_for_load_state("domcontentloaded", timeout=10000)
+                            content = await detail_page.content()
+                            print(f"{content[:2000]}")
+                        except Exception:
+                            pass
                         await detail_page.close()
                         continue
 
-                    # --- Validação do EAN ---
+                    # Verificação de EAN
                     ean_html = None
                     ean_el = await detail_page.query_selector('div.pdp-buybox_referCodeEan__5mCsd')
                     if ean_el:
@@ -138,30 +115,25 @@ async def scrape_epoca_cosmeticos(url):
                             ean_html = match_ean.group(1)
                     if not ean_html or ean_html != sku:
                         print(f"[Época] EAN divergente ou não encontrado: {ean_html} (esperado: {sku})")
-                        try:
-                            content = await detail_page.content()  # Armazena o resultado
-                            print(f"[Época] Conteúdo da página de detalhes: {content[:2000]}")
-                        except Exception as content_error:
-                            print(f"[Época] Erro ao obter conteúdo da página de detalhes: {content_error}")
+                        content = await detail_page.content()
+                        print(f"{content[:2000]}")
                         await detail_page.close()
                         continue
 
                     # Preço
-                    preco_el = await product.query_selector('.product-price_spotPrice__k_4YC')
-                    if not preco_el:
-                        preco_el = await product.query_selector('.product-price_priceList__uepac')
+                    preco_el = await product.query_selector('.product-price_spotPrice__k_4YC') or \
+                               await product.query_selector('.product-price_priceList__uepac')
                     preco = await preco_el.inner_text() if preco_el else ""
                     preco_final_str = re.sub(r"[^\d,]", "", preco).replace(",", ".")
                     preco_final = preco_final_str
                     print(f"[Época] Preço final: {preco_final}")
 
                     # Review
-                    review = 4.5  # Valor padrão
+                    review = 4.5
                     review_el = await product.query_selector('.rate p')
                     if review_el:
                         review_text = await review_el.inner_text()
-                        review_text = review_text.strip()
-                        match = re.search(r'\(([0-9.,]+)\)', review_text)
+                        match = re.search(r'\(([0-9.,]+)\)', review_text.strip())
                         if match:
                             review = float(match.group(1).replace(",", "."))
                     print(f"[Época] Review: {review}")
@@ -178,14 +150,14 @@ async def scrape_epoca_cosmeticos(url):
                     desc_el = await detail_page.query_selector('p[data-product-title="true"]')
                     if desc_el:
                         descricao = await desc_el.inner_text()
-                        descricao = descricao.strip()
                     else:
                         meta_desc = await detail_page.query_selector('meta[name="description"]')
                         if meta_desc:
                             descricao = await meta_desc.get_attribute("content")
+                    descricao = descricao.strip()
                     print(f"[Época] Descrição: {descricao}")
 
-                    # Nome da loja
+                    # Loja
                     loja = "Época Cosméticos"
                     loja_el = await detail_page.query_selector('.pdp-buybox-seller_sellerInfo__BmOa4 a span')
                     if loja_el:
@@ -202,7 +174,7 @@ async def scrape_epoca_cosmeticos(url):
                     key_sku = f"{key_loja}_{sku}" if sku else None
 
                     result = {
-                        "sku": sku if sku else "SKU não encontrado",
+                        "sku": sku,
                         "loja": loja,
                         "preco_final": preco_final,
                         "data_hora": data_hora,
@@ -216,28 +188,24 @@ async def scrape_epoca_cosmeticos(url):
                     }
                     print(f"[Época] Produto final: {result}")
                     lojas.append(result)
+
                 except Exception as e:
                     print(f"[Época] Erro ao processar produto {idx}: {e}")
-                    try:
-                        content = await page.content()  # Armazena o resultado
-                        print(f"[Época] Conteúdo da página: {content[:2000]}")
-                        if 'detail_page' in locals():
-                            content_detail = await detail_page.content()  # Armazena o resultado
-                            print(f"[Época] Conteúdo da página de detalhes: {content_detail[:2000]}")
-                    except Exception as content_error:
-                        print(f"[Época] Erro ao obter conteúdo: {content_error}")
-                    if 'detail_page' in locals():
+                    if 'detail_page' in locals() and not detail_page.is_closed():
                         await detail_page.close()
 
             await context.close()
             await browser.close()
             print(f"[Época] Raspagem finalizada para: {url}")
             return lojas
+
         except Exception as e:
             print(f"[Época] Erro geral na raspagem: {e}")
             try:
-                content = await page.content()  # Armazena o resultado
-                print(f"[Época] Conteúdo da página: {content[:2000]}")
+                if not page.is_closed():
+                    await page.wait_for_load_state("domcontentloaded", timeout=10000)
+                    content = await page.content()
+                    print(f"[Época] Conteúdo da página: {content[:2000]}")
             except Exception as content_error:
                 print(f"[Época] Erro ao obter conteúdo da página: {content_error}")
             await context.close()
