@@ -32,7 +32,6 @@ async def scrape_epoca_cosmeticos(url):
             # Carrega o storage_state do arquivo epoca_auth.json
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                storage_state="epoca_auth.json"  # Carrega cookies do arquivo
             )
             page = await context.new_page()
             print("[Época] Página criada, navegando para a URL...")
