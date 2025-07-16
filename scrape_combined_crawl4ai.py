@@ -17,11 +17,22 @@ async def scrape_epoca_cosmeticos(url):
     print(f"[Época] Iniciando raspagem para: {url}")
     async with async_playwright() as playwright:
         try:
-            browser = await playwright.chromium.launch(headless=True)  # Headless para servidor
+            # Configuração do proxy
+            proxy_config = {
+                "server": "http://45.233.90.10:443",
+                # Se o proxy requer autenticação, descomente e preencha as linhas abaixo
+                # "username": "seu_usuario",
+                # "password": "sua_senha"
+            }
+            
+            browser = await playwright.chromium.launch(
+                headless=False,  # Headless para servidor
+                proxy=proxy_config  # Adiciona o proxy à configuração do navegador
+            )
             # Carrega o storage_state do arquivo epoca_auth.json
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                storage_state="epoca_auth.json"  # Car cookies do arquivo
+                storage_state="epoca_auth.json"  # Carrega cookies do arquivo
             )
             page = await context.new_page()
             print("[Época] Página criada, navegando para a URL...")
