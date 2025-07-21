@@ -293,6 +293,7 @@ async def run_combined_crawler():
             "https://www.belezanaweb.com.br/deva-curl-one-condition-delight-condicionador-1l/ofertas-marketplace",
             "https://www.belezanaweb.com.br/deva-curl-low-poo-shampoo-355ml/ofertas-marketplace",
             "https://www.epocacosmeticos.com.br/pesquisa?q=8005610672427",
+            "https://www.belezanaweb.com.br/senscience-cpr-step-3-condicionador-1l/ofertas-marketplace"
         ]
         
         await process_urls(combined_urls)
