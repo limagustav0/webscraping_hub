@@ -13,6 +13,20 @@ from playwright.async_api import async_playwright
 
 
 
+import re
+import asyncio
+import random
+from datetime import datetime
+from playwright.async_api import async_playwright
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0"
+]
+
 async def scrape_epoca_cosmeticos(url):
     print(f"[Época] Iniciando raspagem para: {url}")
     async with async_playwright() as playwright:
@@ -21,7 +35,7 @@ async def scrape_epoca_cosmeticos(url):
                 headless=True,
             )
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                user_agent=random.choice(USER_AGENTS),
                 # storage_state="epoca_auth.json"  # Comente se não for necessário
             )
             page = await context.new_page()
@@ -230,6 +244,18 @@ async def scrape_epoca_cosmeticos(url):
             await context.close()
             await browser.close()
             return []
+
+# Função principal para executar a raspagem
+async def main():
+    url = "https://www.epocacosmeticos.com.br/pesquisa?q=4064666306179"
+    result = await scrape_epoca_cosmeticos(url)
+    print("\n[Resultado Final]")
+    for item in result:
+        print(item)
+
+# Executar o script
+if __name__ == "__main__":
+    asyncio.run(main())
             
 async def extract_data_from_amazon(target_url: str) -> list:
     print(f"[Amazon] Iniciando raspagem para: {target_url}")
