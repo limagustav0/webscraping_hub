@@ -22,14 +22,14 @@ async def scrape_epoca_cosmeticos(url):
             )
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                storage_state="epoca_auth.json"
+                # storage_state="epoca_auth.json"  # Comente se não for necessário
             )
             page = await context.new_page()
             print("[Época] Página criada, navegando para a URL...")
 
             try:
                 await page.goto(url, timeout=600000)
-                await asyncio.sleep(50)  # substituto correto para time.sleep
+                await asyncio.sleep(50)
                 await page.wait_for_load_state("load", timeout=60000)
                 print("[Época] Página carregada.")
             except Exception as e:
@@ -79,16 +79,19 @@ async def scrape_epoca_cosmeticos(url):
             for idx, product in enumerate(products):
                 print(f"[Época] Processando produto {idx+1}/{len(products)}")
                 try:
+                    # Nome do produto
                     nome_el = await product.query_selector('.name')
                     nome = await nome_el.inner_text() if nome_el else ""
                     nome = nome.strip()
                     print(f"[Época] Nome do produto: {nome}")
 
+                    # Link do produto
                     link_el = await product.query_selector('a[data-content-item="true"]')
                     link = await link_el.get_attribute("href") if link_el else ""
                     if link and not link.startswith("http"):
                         link = "https://www.epocacosmeticos.com.br" + link
 
+                    # Navegar para a página de detalhes
                     detail_page = await context.new_page()
                     try:
                         await detail_page.goto(link, timeout=60000)
@@ -124,9 +127,24 @@ async def scrape_epoca_cosmeticos(url):
                     preco_el = await product.query_selector('.product-price_spotPrice__k_4YC') or \
                                await product.query_selector('.product-price_priceList__uepac')
                     preco = await preco_el.inner_text() if preco_el else ""
-                    preco_final_str = re.sub(r"[^\d,]", "", preco).replace(",", ".")
-                    preco_final = preco_final_str
-                    print(f"[Época] Preço final: {preco_final}")
+                    if preco:
+                        # Remove caracteres não numéricos, exceto vírgula e ponto
+                        preco_clean = re.sub(r"[^\d,.]", "", preco)
+                        # Substitui vírgula por ponto para padronizar
+                        preco_clean = preco_clean.replace(",", ".")
+                        try:
+                            preco_float = float(preco_clean)
+                            # Corrige preços com erro de escala (ex.: 12890.00 → 128.90)
+                            if preco_float > 1000:
+                                preco_float /= 100
+                            preco_final = f"{preco_float:.2f}"
+                            print(f"[Época] Preço final: {preco_final}")
+                        except ValueError:
+                            print(f"[Época] Erro ao converter preço: {preco_clean}")
+                            preco_final = ""
+                    else:
+                        print("[Época] Preço não encontrado")
+                        preco_final = ""
 
                     # Review
                     review = 4.5
@@ -167,6 +185,7 @@ async def scrape_epoca_cosmeticos(url):
 
                     await detail_page.close()
 
+                    # Montagem do resultado
                     data_hora = datetime.utcnow().isoformat() + "Z"
                     status = "ativo"
                     marketplace = "Época Cosméticos"
