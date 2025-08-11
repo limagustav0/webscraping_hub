@@ -9,6 +9,7 @@ async def run_combined_crawler():
     print(f'Executando scrape_combined_crawl4ai.py às {datetime.now()}')
     try:
         combined_urls = [
+            "https://www.belezanaweb.com.br/kit-wella-professionals-invigo-nutrienrich-salon-dueto-2-produtos/ofertas-marketplace",
             "https://www.epocacosmeticos.com.br/pesquisa?q=4064666306179",
             "https://www.amazon.com.br/dp/B0BGJ5RB67",
             'https://www.mercadolivre.com.br/shampoo-wella-invigo-nutri-enrich-1-litro-profissional/p/MLB20570794/s',
@@ -303,5 +304,6 @@ async def run_combined_crawler():
 
 if __name__ == '__main__':
     asyncio.run(run_combined_crawler())
+
 
 
