@@ -206,7 +206,8 @@ async def scrape_epoca_cosmeticos(url):
                         "descricao": descricao,
                         "review": review,
                         "imagem": imagem,
-                        "status": status
+                        "status": status,
+                        "is_active": True  # Adicionado para evitar erro no Pydantic
                     }
                     print(f"[Época] Produto final: {result}")
                     lojas.append(result)
@@ -348,7 +349,8 @@ async def extract_data_from_amazon(target_url: str) -> list:
                         'descricao': descricao,
                         'review': review,
                         'imagem': imagem,
-                        'status': 'ativo'
+                        'status': 'ativo',
+                        'is_active': True  # Adicionado para evitar erro no Pydantic
                     })
                     print(f"Vendedor principal capturado: {seller_name}, Preço: {preco_final}")
             except Exception as e:
@@ -431,7 +433,8 @@ async def extract_data_from_amazon(target_url: str) -> list:
                             'descricao': descricao,
                             'review': review,
                             'imagem': imagem,
-                            'status': 'ativo'
+                            'status': 'ativo',
+                            'is_active': True  # Adicionado para evitar erro no Pydantic
                         })
                         print(f"Oferta {i} capturada: {seller_name}, Preço: {preco_final}")
                     except Exception as e:
@@ -463,7 +466,7 @@ async def extract_data_from_markdown_beleza_kit(markdown, provided_sku):
         return []
 
     # Extrai descrição
-    desc_pattern = r'\[Voltar para a página do produto\]\(https://www\.belezanaweb\.com\.br/(.+?)\)'
+    desc_pattern = r'\[Voltar para a página do produto\][](https://www\.belezanaweb\.com\.br/(.+?)\)'
     desc_match = re.search(desc_pattern, markdown)
     if desc_match:
         url_text = desc_match.group(1)
@@ -481,7 +484,7 @@ async def extract_data_from_markdown_beleza_kit(markdown, provided_sku):
     )
 
     # Extrai imagem
-    img_pattern_with_desc = r'!\[.*?\]\((https://res\.cloudinary\.com/beleza-na-web/image/upload/.*?/v1/imagens/product/.*?/.*?\.(?:png|jpg))\)'
+    img_pattern_with_desc = r'!\[.*?\]\[](https://res\.cloudinary\.com/beleza-na-web/image/upload/.*?/v1/imagens/product/.*?/.*?\.(?:png|jpg))\)'
     img_match_with_desc = re.search(img_pattern_with_desc, markdown)
     imagem = (
         img_match_with_desc.group(1)
@@ -534,6 +537,7 @@ async def extract_data_from_markdown_beleza_kit(markdown, provided_sku):
             'review': review,
             'imagem': imagem,
             'status': 'ativo',
+            'is_active': True  # Adicionado para evitar erro no Pydantic
         }
         lojas.append(loja)
 
@@ -552,7 +556,7 @@ async def extract_data_from_markdown_beleza(markdown):
         return []
 
     # Extrai descrição
-    desc_pattern = r'\[Voltar para a página do produto\]\(https://www\.belezanaweb\.com\.br/(.+?)\)'
+    desc_pattern = r'\[Voltar para a página do produto\][](https://www\.belezanaweb\.com\.br/(.+?)\)'
     desc_match = re.search(desc_pattern, markdown)
     if desc_match:
         url_text = desc_match.group(1)
@@ -570,7 +574,7 @@ async def extract_data_from_markdown_beleza(markdown):
     )
 
     # Extrai imagem
-    img_pattern_with_desc = r'!\[.*?\]\((https://res\.cloudinary\.com/beleza-na-web/image/upload/.*?/v1/imagens/product/.*?/.*?\.(?:png|jpg))\)'
+    img_pattern_with_desc = r'!\[.*?\]\[](https://res\.cloudinary\.com/beleza-na-web/image/upload/.*?/v1/imagens/product/.*?/.*?\.(?:png|jpg))\)'
     img_match_with_desc = re.search(img_pattern_with_desc, markdown)
     imagem = (
         img_match_with_desc.group(1)
@@ -623,6 +627,7 @@ async def extract_data_from_markdown_beleza(markdown):
             'review': review,
             'imagem': imagem,
             'status': 'ativo',
+            'is_active': True  # Adicionado para evitar erro no Pydantic
         }
         lojas.append(loja)
 
@@ -698,7 +703,7 @@ async def extract_data_from_meli(url: str) -> list:
                 try:
                     script_content = await page.evaluate(
                         """() => {
-                            const scripts = document.querySelectorAll('script');
+                            const scripts = document.query_selectorAll('script');
                             for (let script of scripts) {
                                 if (script.textContent.includes('melidata("add", "event_data"')) {
                                     return script.textContent;
@@ -730,7 +735,8 @@ async def extract_data_from_meli(url: str) -> list:
                                     'descricao': descricao,
                                     'review': review,
                                     'imagem': imagem,
-                                    'status': 'ativo'
+                                    'status': 'ativo',
+                                    'is_active': True  # Adicionado para evitar erro no Pydantic
                                 }
                                 lojas.append(seller)
                         else:
@@ -768,6 +774,9 @@ async def extract_data_from_meli(url: str) -> list:
 
 async def crawl_url(crawler, url_data, max_retries=3):
     """Extrai dados de URLs usando Crawl4AI ou Playwright com re-tentativas."""
+    if not isinstance(url_data, dict) or 'url' not in url_data:
+        print(f'Erro: url_data inválido: {url_data}')
+        return []
     lojas = []
     for attempt in range(max_retries):
         try:
@@ -849,8 +858,13 @@ async def update_to_api(data):
 def save_sem_dados_urls(sem_dados):
     """Salva URLs sem dados em um arquivo JSON."""
     try:
+        # Garantir que cada item em sem_dados tenha a chave 'url'
+        formatted_data = [
+            item if isinstance(item, dict) and 'url' in item else {'url': item}
+            for item in sem_dados
+        ]
         with open('sem_dados_urls.json', 'w', encoding='utf-8') as f:
-            json.dump(sem_dados, f, ensure_ascii=False, indent=2)
+            json.dump(formatted_data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f'Erro ao salvar sem_dados_urls.json: {e}')
 
@@ -859,7 +873,12 @@ def carregar_sem_dados_url():
     try:
         if os.path.exists('sem_dados_urls.json'):
             with open('sem_dados_urls.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
+                # Garantir que cada item tenha a chave 'url'
+                return [
+                    item if isinstance(item, dict) and 'url' in item else {'url': item}
+                    for item in data
+                ]
         return []
     except Exception as e:
         print(f'Erro ao carregar sem_dados_urls.json: {e}')
@@ -869,16 +888,30 @@ async def process_urls(urls):
     sem_dado = carregar_sem_dados_url()
     combined_urls = []
 
+    # Adicionar URLs de entrada
     for url_data in urls:
         if isinstance(url_data, dict) and 'url' in url_data:
             combined_urls.append(url_data)
-    combined_urls.extend(sem_dado)
+        elif isinstance(url_data, str):
+            combined_urls.append({'url': url_data})  # Converter string para dicionário
+        else:
+            print(f'Ignorando URL inválida: {url_data}')
 
+    # Adicionar URLs de tentativas anteriores
+    for url_data in sem_dado:
+        if isinstance(url_data, dict) and 'url' in url_data:
+            combined_urls.append(url_data)
+        elif isinstance(url_data, str):
+            combined_urls.append({'url': url_data})  # Converter string para dicionário
+        else:
+            print(f'Ignorando URL inválida em sem_dados: {url_data}')
+
+    # Remover duplicatas
     seen_urls = set()
     unique_urls = []
     for url_data in combined_urls:
         url = url_data.get('url')
-        if url not in seen_urls:
+        if url and url not in seen_urls:
             seen_urls.add(url)
             unique_urls.append(url_data)
 
@@ -935,13 +968,13 @@ async def process_urls(urls):
             put_status = await update_to_api(sellers)
             if put_status != 202:
                 print(f'Falha ao atualizar dados do kit SKU {sku} (Status: {put_status})')
-                sem_dados.append({"sku": sku, "urls": [loja.get("url") for loja in sellers]})
+                sem_dados.append({"sku": sku, "url": [loja.get("url") for loja in sellers]})
             else:
                 print(f'Dados atualizados com sucesso para kit SKU {sku}, PUT concluído.')
                 successful_urls += 1
         else:
             print(f'Falha ao salvar dados do kit SKU {sku} (Status: {post_status})')
-            sem_dados.append({"sku": sku, "urls": [loja.get("url") for loja in sellers]})
+            sem_dados.append({"sku": sku, "url": [loja.get("url") for loja in sellers]})
 
     save_sem_dados_urls(sem_dados)
     print(f'Processamento concluído: {processed_count}/{total_urls} URLs processadas')
@@ -957,23 +990,6 @@ if __name__ == "__main__":
         {
             "url": "https://www.belezanaweb.com.br/kit-wella-professionals-invigo-nutrienrich-super-salon-2-produtos/ofertas-marketplace",
             "sku": "WLK005blz"
-        },
-        {"url": "https://www.belezanaweb.com.br/wella-professionals-invigo-nutrienrich-mascara-capilar-500ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/wella-professionals-oil-reflections-luminous-reveal-shampoo-1-litro/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/wella-professionals-oil-reflections-luminous-reboost-mascara-500ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/wella-professionals-oil-reflections-oleo-capilar-100ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/wella-professionals-oil-reflections-light-oleo-capilar-100ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/cadiveu-professional-acai-oil-oleo-de-tratamento-60ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/kit-cadiveu-professional-plastica-dos-fios-alinhamento-profissional-3-produtos/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/cadiveu-professional-essentials-bye-bye-frizz-gradual-smoothing-mist-spray-protetor-termico-200ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/cadiveu-essentials-quartzo-shine-by-boca-rosa-hair-oleo-capilar-quartzo-liquido-65ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/deva-curl-one-condition-condicionador-355ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/cadiveu-professional-nutri-glow-mascara-capilar-200ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/deva-curl-heaven-in-hair-mascara-capilar-250g/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/deva-curl-supercream-creme-modelador-250g/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/cadiveu-essentials-quartzo-shine-leavein-protetor-termico-200ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/senscience-inner-restore-intensif-mascara-capilar-de-500ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/senscience-inner-restore-mascara-capilar-500ml/ofertas-marketplace", "sku": None},
-            {"url": "https://www.belezanaweb.com.br/senscience-inner-restore-deep-moisturizing-conditioner-mascara-200ml/ofertas-marketplace", "sku": None}
+        }
     ]
     asyncio.run(process_urls(urls))
