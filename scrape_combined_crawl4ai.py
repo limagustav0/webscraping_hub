@@ -3,20 +3,14 @@ import json
 import os
 import re
 import time
+import random
 from datetime import datetime
 from pprint import pprint
+from collections import defaultdict
 
 import aiohttp
 from crawl4ai import AsyncWebCrawler
 from playwright.async_api import Error as PlaywrightError
-from playwright.async_api import async_playwright
-
-
-
-import re
-import asyncio
-import random
-from datetime import datetime
 from playwright.async_api import async_playwright
 
 USER_AGENTS = [
@@ -31,13 +25,8 @@ async def scrape_epoca_cosmeticos(url):
     print(f"[Época] Iniciando raspagem para: {url}")
     async with async_playwright() as playwright:
         try:
-            browser = await playwright.chromium.launch(
-                headless=True,
-            )
-            context = await browser.new_context(
-                user_agent=random.choice(USER_AGENTS),
-                # storage_state="epoca_auth.json"  # Comente se não for necessário
-            )
+            browser = await playwright.chromium.launch(headless=True)
+            context = await browser.new_context(user_agent=random.choice(USER_AGENTS))
             page = await context.new_page()
             print("[Época] Página criada, navegando para a URL...")
 
@@ -245,18 +234,6 @@ async def scrape_epoca_cosmeticos(url):
             await browser.close()
             return []
 
-# Função principal para executar a raspagem
-async def main():
-    url = "https://www.epocacosmeticos.com.br/pesquisa?q=4064666306179"
-    result = await scrape_epoca_cosmeticos(url)
-    print("\n[Resultado Final]")
-    for item in result:
-        print(item)
-
-# Executar o script
-if __name__ == "__main__":
-    asyncio.run(main())
-            
 async def extract_data_from_amazon(target_url: str) -> list:
     print(f"[Amazon] Iniciando raspagem para: {target_url}")
     start_time = time.time()
@@ -364,7 +341,7 @@ async def extract_data_from_amazon(target_url: str) -> list:
                         'sku': sku,
                         'loja': seller_name,
                         'preco_final': preco_final,
-                        'data_hora': datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                        'data_hora': datetime.utcnow().isoformat() + "Z",
                         'marketplace': 'Amazon',
                         'key_loja': key_loja,
                         'key_sku': key_sku,
@@ -447,7 +424,7 @@ async def extract_data_from_amazon(target_url: str) -> list:
                             'sku': sku,
                             'loja': seller_name,
                             'preco_final': preco_final,
-                            'data_hora': datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                            'data_hora': datetime.utcnow().isoformat() + "Z",
                             'marketplace': 'Amazon',
                             'key_loja': key_loja,
                             'key_sku': key_sku,
@@ -475,16 +452,14 @@ async def extract_data_from_amazon(target_url: str) -> list:
     print(f"[Amazon] Tempo de execução: {execution_time:.2f} segundos")
     return lojas
 
-def extract_data_from_markdown_beleza(markdown):
-    """Extrai SKU, descrição, review, imagem e dados de lojas do Markdown (Beleza na Web)."""
+async def extract_data_from_markdown_beleza_kit(markdown, provided_sku):
+    """Extrai SKU, descrição, review, imagem e dados de lojas do Markdown (Beleza na Web) para kits."""
     lojas = []
 
-    # Extrai SKU
-    sku_pattern = r'\*\*Cod:\*\* (MP\d+|\d+)'
-    sku_match = re.search(sku_pattern, markdown)
-    sku = sku_match.group(1) if sku_match else None
+    # Usa o SKU fornecido
+    sku = provided_sku
     if not sku:
-        print('SKU não encontrado no Markdown (Beleza na Web)')
+        print('SKU não fornecido para Beleza na Web (kit)')
         return []
 
     # Extrai descrição
@@ -496,7 +471,7 @@ def extract_data_from_markdown_beleza(markdown):
         descricao = descricao.replace('Condicionador ', 'Condicionador - ')
     else:
         descricao = 'Descrição não encontrada'
-    print(f'Descrição capturada (Beleza na Web): {descricao!r}')
+    print(f'Descrição capturada (Beleza na Web - kit): {descricao!r}')
 
     # Extrai review
     review_pattern = r'Review[:\s]*(\d+[\.,]\d+|\d+)'
@@ -538,15 +513,11 @@ def extract_data_from_markdown_beleza(markdown):
         nome_loja = loja_match.group(1) if loja_match else 'Beleza na Web'
         if preco_com_desconto_match:
             preco_final_str = preco_com_desconto_match.group(1)
-            preco_final_str = preco_final_str.replace('.', '').replace(
-                ',', '.'
-            )
+            preco_final_str = preco_final_str.replace('.', '').replace(',', '.')
             preco_final = float(preco_final_str)
         elif preco_venda_match:
             preco_final_str = preco_venda_match.group(1)
-            preco_final_str = preco_final_str.replace('.', '').replace(
-                ',', '.'
-            )
+            preco_final_str = preco_final_str.replace('.', '').replace(',', '.')
             preco_final = float(preco_final_str)
         else:
             preco_final = 0.0
@@ -555,7 +526,96 @@ def extract_data_from_markdown_beleza(markdown):
             'sku': sku,
             'loja': nome_loja,
             'preco_final': preco_final,
-            'data_hora': datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'data_hora': datetime.utcnow().isoformat() + "Z",
+            'marketplace': 'Beleza na Web',
+            'key_loja': key_loja,
+            'key_sku': f'{key_loja}_{sku}',
+            'descricao': descricao,
+            'review': review,
+            'imagem': imagem,
+            'status': 'ativo',
+        }
+        lojas.append(loja)
+
+    return lojas
+
+async def extract_data_from_markdown_beleza(markdown):
+    """Extrai SKU, descrição, review, imagem e dados de lojas do Markdown (Beleza na Web) para produtos unitários."""
+    lojas = []
+
+    # Extrai SKU
+    sku_pattern = r'\*\*Cod:\*\* (MP\d+|\d+)'
+    sku_match = re.search(sku_pattern, markdown)
+    sku = sku_match.group(1) if sku_match else None
+    if not sku:
+        print('SKU não encontrado no Markdown (Beleza na Web - unitário)')
+        return []
+
+    # Extrai descrição
+    desc_pattern = r'\[Voltar para a página do produto\]\(https://www\.belezanaweb\.com\.br/(.+?)\)'
+    desc_match = re.search(desc_pattern, markdown)
+    if desc_match:
+        url_text = desc_match.group(1)
+        descricao = ' '.join(word.capitalize() for word in url_text.split('-'))
+        descricao = descricao.replace('Condicionador ', 'Condicionador - ')
+    else:
+        descricao = 'Descrição não encontrada'
+    print(f'Descrição capturada (Beleza na Web - unitário): {descricao!r}')
+
+    # Extrai review
+    review_pattern = r'Review[:\s]*(\d+[\.,]\d+|\d+)'
+    review_match = re.search(review_pattern, markdown)
+    review = (
+        float(review_match.group(1).replace(',', '.')) if review_match else 4.5
+    )
+
+    # Extrai imagem
+    img_pattern_with_desc = r'!\[.*?\]\((https://res\.cloudinary\.com/beleza-na-web/image/upload/.*?/v1/imagens/product/.*?/.*?\.(?:png|jpg))\)'
+    img_match_with_desc = re.search(img_pattern_with_desc, markdown)
+    imagem = (
+        img_match_with_desc.group(1)
+        if img_match_with_desc
+        else 'Imagem não encontrada'
+    )
+    if imagem == 'Imagem não encontrada':
+        img_pattern_empty = r'!\[\]\((https?://[^\s)]+)\)'
+        img_matches_empty = re.findall(img_pattern_empty, markdown)
+        imagem = (
+            img_matches_empty[0]
+            if img_matches_empty
+            else 'Imagem não encontrada'
+        )
+
+    # Extrai lojas e preços
+    loja_pattern = r'Vendido por \*\*(.*?)\*\* Entregue por Beleza na Web'
+    preco_com_desconto_pattern = r'-[\d]+%.*?\nR\$ ([\d,\.]+)'
+    preco_venda_pattern = r'(?<!De )R\$ ([\d,\.]+)(?!\s*3x)'
+    blocos = re.split(
+        r'(?=Vendido por \*\*.*?\*\* Entregue por Beleza na Web)', markdown
+    )
+    for bloco in blocos:
+        if 'Vendido por' not in bloco:
+            continue
+        loja_match = re.search(loja_pattern, bloco)
+        preco_com_desconto_match = re.search(preco_com_desconto_pattern, bloco)
+        preco_venda_match = re.search(preco_venda_pattern, bloco)
+        nome_loja = loja_match.group(1) if loja_match else 'Beleza na Web'
+        if preco_com_desconto_match:
+            preco_final_str = preco_com_desconto_match.group(1)
+            preco_final_str = preco_final_str.replace('.', '').replace(',', '.')
+            preco_final = float(preco_final_str)
+        elif preco_venda_match:
+            preco_final_str = preco_venda_match.group(1)
+            preco_final_str = preco_final_str.replace('.', '').replace(',', '.')
+            preco_final = float(preco_final_str)
+        else:
+            preco_final = 0.0
+        key_loja = nome_loja.lower().replace(' ', '')
+        loja = {
+            'sku': sku,
+            'loja': nome_loja,
+            'preco_final': preco_final,
+            'data_hora': datetime.utcnow().isoformat() + "Z",
             'marketplace': 'Beleza na Web',
             'key_loja': key_loja,
             'key_sku': f'{key_loja}_{sku}',
@@ -575,7 +635,6 @@ async def extract_data_from_meli(url: str) -> list:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         try:
-            # Configure context with minimal settings for speed
             context = await browser.new_context(
                 storage_state="meli_auth.json",
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -583,18 +642,13 @@ async def extract_data_from_meli(url: str) -> list:
             )
             try:
                 page = await context.new_page()
-                
-                # Block images and media to speed up page load
                 await context.route("**/*.{png,jpg,jpeg,webp,gif,mp4,webm}", lambda route: route.abort())
-                
-                # Navigate to the URL
-                response = await page.goto(url, timeout=30000)  # 30-second timeout
+                response = await page.goto(url, timeout=30000)
                 print(f"[Mercado Livre] After navigation: {time.time() - start_time:.2f} seconds")
                 if response.status != 200:
                     print(f"[Mercado Livre] Failed to load page {url}. Status code: {response.status}")
                     return lojas
-                
-                # Extract SKU from URL (fast regex operation)
+
                 sku = None
                 try:
                     match = re.search(r'(?:/p/|item_id%3A)(MLB\d+)', url)
@@ -603,8 +657,7 @@ async def extract_data_from_meli(url: str) -> list:
                         print(f"[Mercado Livre] SKU not found in URL: {url}")
                 except Exception as e:
                     print(f"[Mercado Livre] Error extracting SKU: {e}")
-                
-                # Parallelize extraction of description, image, and review
+
                 async def get_description():
                     try:
                         await page.wait_for_selector('h1.ui-pdp-title', timeout=7000)
@@ -612,7 +665,7 @@ async def extract_data_from_meli(url: str) -> list:
                     except Exception as e:
                         print(f"[Mercado Livre] Error extracting description: {e}")
                         return "Descrição não encontrada"
-                
+
                 async def get_image():
                     try:
                         await page.wait_for_selector('img.ui-pdp-image', timeout=7000)
@@ -620,7 +673,7 @@ async def extract_data_from_meli(url: str) -> list:
                     except Exception as e:
                         print(f"[Mercado Livre] Error extracting image: {e}")
                         return "Imagem não encontrada"
-                
+
                 async def get_review():
                     try:
                         await page.wait_for_selector('.ui-pdp-reviews__rating__summary__average', timeout=7000)
@@ -630,8 +683,7 @@ async def extract_data_from_meli(url: str) -> list:
                     except Exception as e:
                         print(f"[Mercado Livre] Error extracting review: {e}")
                         return 4.5
-                
-                # Run extraction tasks concurrently
+
                 try:
                     descricao, imagem, review = await asyncio.gather(
                         get_description(),
@@ -642,8 +694,7 @@ async def extract_data_from_meli(url: str) -> list:
                 except Exception as e:
                     print(f"[Mercado Livre] Error during concurrent element extraction: {e}")
                     descricao, imagem, review = "Descrição não encontrada", "Imagem não encontrada", 4.5
-                
-                # Extract seller data from melidata
+
                 try:
                     script_content = await page.evaluate(
                         """() => {
@@ -656,23 +707,23 @@ async def extract_data_from_meli(url: str) -> list:
                             return null;
                         }"""
                     )
-                    
+
                     if script_content:
                         pattern = r'melidata\("add", "event_data", ({.*?})\);'
                         match = re.search(pattern, script_content, re.DOTALL)
                         if match:
                             event_data = json.loads(match.group(1))
                             items = event_data.get('items', [])
-                            
+
                             for item in items:
                                 nome_loja = item.get('seller_name', 'Mercado Livre')
                                 key_loja = nome_loja.lower().replace(' ', '')
-                                
+
                                 seller = {
                                     'sku': sku if sku else 'SKU não encontrado',
                                     'loja': nome_loja,
                                     'preco_final': float(item.get('price', 0.0)),
-                                    'data_hora': datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                                    'data_hora': datetime.utcnow().isoformat() + "Z",
                                     'marketplace': 'Mercado Livre',
                                     'key_loja': key_loja,
                                     'key_sku': f'{key_loja}_{sku}' if key_loja and sku else None,
@@ -691,13 +742,12 @@ async def extract_data_from_meli(url: str) -> list:
                     print(f"[Mercado Livre] Error parsing melidata JSON: {e}")
                 except Exception as e:
                     print(f"[Mercado Livre] Error extracting melidata: {e}")
-                
-                # Save session state
+
                 try:
                     await context.storage_state(path='meli_auth.json')
                 except Exception as e:
                     print(f"[Mercado Livre] Error saving storage state: {e}")
-                    
+
             except Exception as e:
                 print(f"[Mercado Livre] Error processing page {url}: {e}")
             finally:
@@ -710,24 +760,27 @@ async def extract_data_from_meli(url: str) -> list:
             print(f"[Mercado Livre] Error setting up context: {e}")
         finally:
             await browser.close()
-    
+
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"[Mercado Livre] Tempo de execução: {execution_time:.2f} segundos")
-    
     return lojas
 
-async def crawl_url(crawler, url, max_retries=3):
-    """Extrai dados de uma URL usando Crawl4AI ou Playwright (para Mercado Livre e Amazon) com re-tentativas."""
+async def crawl_url(crawler, url_data, max_retries=3):
+    """Extrai dados de URLs usando Crawl4AI ou Playwright com re-tentativas."""
+    lojas = []
     for attempt in range(max_retries):
         try:
-            print(f'Extraindo dados da URL: {url} (Tentativa {attempt + 1}/{max_retries})')
+            url = url_data.get('url')
+            sku = url_data.get('sku') if 'belezanaweb' in url.lower() else None
+            print(f'Extraindo dados da URL: {url} com SKU: {sku if sku else "Não fornecido"} (Tentativa {attempt + 1}/{max_retries})')
+
             if 'mercadolivre' in url.lower():
                 lojas = await extract_data_from_meli(url)
             elif 'amazon' in url.lower():
                 lojas = await extract_data_from_amazon(url)
             elif 'epoca' in url.lower():
-                lojas = await scrape_epoca_cosmeticos(url)  # Usa await em vez de asyncio.run
+                lojas = await scrape_epoca_cosmeticos(url)
             elif 'belezanaweb' in url.lower():
                 result = await crawler.arun(
                     url=url,
@@ -739,8 +792,12 @@ async def crawl_url(crawler, url, max_retries=3):
                     },
                 )
                 markdown_content = result.markdown
-                print('Markdown gerado:')
-                lojas = extract_data_from_markdown_beleza(markdown_content)
+                print(f'Markdown gerado para {url}:')
+                # Usa SKU fornecido para kits, caso contrário, extrai do markdown para produtos unitários
+                if sku:
+                    lojas = await extract_data_from_markdown_beleza_kit(markdown_content, provided_sku=sku)
+                else:
+                    lojas = await extract_data_from_markdown_beleza(markdown_content)
             else:
                 print(f'URL não reconhecida: {url}')
                 return []
@@ -809,42 +866,82 @@ def carregar_sem_dados_url():
         return []
 
 async def process_urls(urls):
-    """Processa URLs de Amazon, Beleza na Web e Mercado Livre e envia os itens para a API."""
     sem_dado = carregar_sem_dados_url()
-    combined_urls = list(dict.fromkeys(sem_dado + urls))
-    total_urls = len(combined_urls)
+    combined_urls = []
+
+    for url_data in urls:
+        if isinstance(url_data, dict) and 'url' in url_data:
+            combined_urls.append(url_data)
+    combined_urls.extend(sem_dado)
+
+    seen_urls = set()
+    unique_urls = []
+    for url_data in combined_urls:
+        url = url_data.get('url')
+        if url not in seen_urls:
+            seen_urls.add(url)
+            unique_urls.append(url_data)
+
+    total_urls = len(unique_urls)
     processed_count = 0
     sem_dados = []
     successful_urls = 0
 
     print(f'Total de URLs a processar: {total_urls} (incluindo {len(sem_dado)} URLs de execuções anteriores)')
+    kit_lojas = defaultdict(list)
+
     async with AsyncWebCrawler(verbose=True) as crawler:
-        for url in combined_urls:
+        for url_data in unique_urls:
             processed_count += 1
+            url = url_data.get('url')
+            sku = url_data.get('sku')
             print(f'Processado {processed_count}/{total_urls} URLs')
-            result = await crawl_url(crawler, url)
+            result = await crawl_url(crawler, url_data)
             print('Dados extraídos:')
-            pprint(result, indent=2)  # Use pprint for structured output
+            pprint(result, indent=2)
             if result:
-                post_status = await send_to_api(result)
-                if post_status in (200, 201):
-                    print(f'Dados salvos com sucesso para {url}, POST concluído.')
-                    successful_urls += 1
-                elif post_status == 400:
-                    put_status = await update_to_api(result)
-                    if put_status != 202:
-                        print(f'Falha ao atualizar dados de {url} (Status: {put_status})')
-                        sem_dados.append(url)
-                    else:
-                        print(f'Dados atualizados com sucesso para {url}, PUT concluído.')
+                if sku:  # Se tem SKU, é kit
+                    for loja in result:
+                        kit_lojas[sku].append(loja)
+                else:  # Unitário, envia direto
+                    post_status = await send_to_api(result)
+                    if post_status in (200, 201):
+                        print(f'Dados salvos com sucesso para {url}, POST concluído.')
                         successful_urls += 1
-                else:
-                    print(f'Falha ao salvar dados de {url} (Status: {post_status})')
-                    sem_dados.append(url)
+                    elif post_status == 400:
+                        put_status = await update_to_api(result)
+                        if put_status != 202:
+                            print(f'Falha ao atualizar dados de {url} (Status: {put_status})')
+                            sem_dados.append(url_data)
+                        else:
+                            print(f'Dados atualizados com sucesso para {url}, PUT concluído.')
+                            successful_urls += 1
+                    else:
+                        print(f'Falha ao salvar dados de {url} (Status: {post_status})')
+                        sem_dados.append(url_data)
             else:
                 print(f'Sem dados para {url}, marcando para lista de URLs sem dados')
-                sem_dados.append(url)
+                sem_dados.append(url_data)
             time.sleep(1)
+
+    # Envia todos os kits agrupados por SKU
+    for sku, sellers in kit_lojas.items():
+        print(f"Enviando todos os sellers do kit SKU {sku}")
+        post_status = await send_to_api(sellers)
+        if post_status in (200, 201):
+            print(f'Dados salvos com sucesso para kit SKU {sku}, POST concluído.')
+            successful_urls += 1
+        elif post_status == 400:
+            put_status = await update_to_api(sellers)
+            if put_status != 202:
+                print(f'Falha ao atualizar dados do kit SKU {sku} (Status: {put_status})')
+                sem_dados.append({"sku": sku, "urls": [loja.get("url") for loja in sellers]})
+            else:
+                print(f'Dados atualizados com sucesso para kit SKU {sku}, PUT concluído.')
+                successful_urls += 1
+        else:
+            print(f'Falha ao salvar dados do kit SKU {sku} (Status: {post_status})')
+            sem_dados.append({"sku": sku, "urls": [loja.get("url") for loja in sellers]})
 
     save_sem_dados_urls(sem_dados)
     print(f'Processamento concluído: {processed_count}/{total_urls} URLs processadas')
@@ -853,6 +950,30 @@ async def process_urls(urls):
 
 if __name__ == "__main__":
     urls = [
-        "https://www.epocacosmeticos.com.br/pesquisa?q=8005610672427"       # Adicione outras URLs para Amazon, Beleza na Web, Mercado Livre, etc.
+        {
+            "url": "https://www.belezanaweb.com.br/kit-wella-professionals-invigo-nutrienrich-salon-duo-treatment-mask-2-produtos/ofertas-marketplace",
+            "sku": "WLK005blz"
+        },
+        {
+            "url": "https://www.belezanaweb.com.br/kit-wella-professionals-invigo-nutrienrich-super-salon-2-produtos/ofertas-marketplace",
+            "sku": "WLK005blz"
+        },
+        {"url": "https://www.belezanaweb.com.br/wella-professionals-invigo-nutrienrich-mascara-capilar-500ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/wella-professionals-oil-reflections-luminous-reveal-shampoo-1-litro/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/wella-professionals-oil-reflections-luminous-reboost-mascara-500ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/wella-professionals-oil-reflections-oleo-capilar-100ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/wella-professionals-oil-reflections-light-oleo-capilar-100ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/cadiveu-professional-acai-oil-oleo-de-tratamento-60ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/kit-cadiveu-professional-plastica-dos-fios-alinhamento-profissional-3-produtos/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/cadiveu-professional-essentials-bye-bye-frizz-gradual-smoothing-mist-spray-protetor-termico-200ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/cadiveu-essentials-quartzo-shine-by-boca-rosa-hair-oleo-capilar-quartzo-liquido-65ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/deva-curl-one-condition-condicionador-355ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/cadiveu-professional-nutri-glow-mascara-capilar-200ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/deva-curl-heaven-in-hair-mascara-capilar-250g/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/deva-curl-supercream-creme-modelador-250g/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/cadiveu-essentials-quartzo-shine-leavein-protetor-termico-200ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/senscience-inner-restore-intensif-mascara-capilar-de-500ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/senscience-inner-restore-mascara-capilar-500ml/ofertas-marketplace", "sku": None},
+            {"url": "https://www.belezanaweb.com.br/senscience-inner-restore-deep-moisturizing-conditioner-mascara-200ml/ofertas-marketplace", "sku": None}
     ]
     asyncio.run(process_urls(urls))
